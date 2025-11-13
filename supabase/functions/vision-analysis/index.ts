@@ -17,50 +17,53 @@ serve(async (req) => {
       throw new Error('No image provided')
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured')
+    const GOOGLE_AI_API_KEY = Deno.env.get('GOOGLE_AI_API_KEY')
+    if (!GOOGLE_AI_API_KEY) {
+      throw new Error('GOOGLE_AI_API_KEY is not configured')
     }
 
-    let systemPrompt = ''
-    let userPrompt = ''
+    let prompt = ''
 
     if (mode === 'object') {
-      systemPrompt = 'You are an assistive vision AI helping visually impaired users. Provide clear, detailed descriptions of objects, people, scenes, and surroundings in images. Focus on practical, helpful information.'
-      userPrompt = 'Describe this image in detail. Include objects, people, colors, settings, actions, and any text visible. Be specific and helpful for someone who cannot see the image.'
+      prompt = 'You are an assistive vision AI helping visually impaired users. Describe this image in detail. Include objects, people, colors, settings, actions, and any text visible. Be specific and helpful for someone who cannot see the image.'
     } else if (mode === 'text') {
-      systemPrompt = 'You are an OCR assistant helping visually impaired users. Extract and read all visible text from images, including signs, labels, documents, and any written content.'
-      userPrompt = 'Extract and return all text visible in this image. Include text from signs, labels, documents, books, screens, or any written content. If no text is found, say "No text detected in this image."'
+      prompt = 'Extract and return all text visible in this image. Include text from signs, labels, documents, books, screens, or any written content. If no text is found, say "No text detected in this image."'
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: userPrompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:image/jpeg;base64,${image}`
+    // Google Gemini API direct call
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: image
+                  }
                 }
-              }
-            ]
+              ]
+            }
+          ],
+          generationConfig: {
+            maxOutputTokens: 1000,
+            temperature: 0.4,
           }
-        ],
-        max_tokens: 1000,
-      }),
-    })
+        }),
+      }
+    )
 
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error('Gemini API error:', response.status, errorText)
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again in a moment.' }),
@@ -70,23 +73,14 @@ serve(async (req) => {
           }
         )
       }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI service temporarily unavailable. Please try again later.' }),
-          {
-            status: 402,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          }
-        )
-      }
       
-      const errorText = await response.text()
-      console.error('AI gateway error:', response.status, errorText)
       throw new Error('AI analysis failed')
     }
 
     const data = await response.json()
-    const analysisText = data.choices?.[0]?.message?.content
+    console.log('Gemini response:', JSON.stringify(data))
+    
+    const analysisText = data.candidates?.[0]?.content?.parts?.[0]?.text
 
     if (!analysisText) {
       throw new Error('No analysis result received')
