@@ -106,7 +106,7 @@ const Index = () => {
             <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
             <p className="text-lg text-muted-foreground mb-4">AI Vision Assistant</p>
             <div className="text-sm text-muted-foreground/80 space-y-1">
-              <p>React • Google Gemini 2.5 Flash</p>
+              <p>React • Google Gemini 1.5 Flash</p>
               <p>Speech Synthesis • PWA</p>
             </div>
           </div>
