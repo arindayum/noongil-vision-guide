@@ -30,39 +30,69 @@ serve(async (req) => {
       prompt = 'Extract and return all text visible in this image. Include text from signs, labels, documents, books, screens, or any written content. If no text is found, say "No text detected in this image."'
     }
 
-    // Google Gemini API direct call
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                {
-                  inlineData: {
-                    mimeType: 'image/jpeg',
-                    data: image
+    // Google Gemini API with retry logic
+    let response: Response | undefined;
+    let retries = 3;
+    
+    while (retries > 0) {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_AI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  {
+                    inline_data: {
+                      mime_type: 'image/jpeg',
+                      data: image
+                    }
                   }
-                }
-              ]
+                ]
+              }
+            ],
+            generationConfig: {
+              maxOutputTokens: 1000,
+              temperature: 0.4,
             }
-          ],
-          generationConfig: {
-            maxOutputTokens: 1000,
-            temperature: 0.4,
-          }
-        }),
+          }),
+        }
+      )
+      
+      if (response.ok) break
+      
+      if (response.status === 503 && retries > 1) {
+        console.log(`Gemini overloaded, retrying... (${retries - 1} attempts left)`)
+        await new Promise(resolve => setTimeout(resolve, 2000)) // Wait 2 seconds
+        retries--
+        continue
       }
-    )
+      
+      break
+    }
+
+    if (!response) {
+      throw new Error('Failed to get response from Gemini API')
+    }
 
     if (!response.ok) {
       const errorText = await response.text()
       console.error('Gemini API error:', response.status, errorText)
+      
+      if (response.status === 503) {
+        return new Response(
+          JSON.stringify({ error: 'AI service is temporarily busy. Please try again in a moment.' }),
+          {
+            status: 503,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        )
+      }
       
       if (response.status === 429) {
         return new Response(
