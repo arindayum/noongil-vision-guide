@@ -104,10 +104,11 @@ const Index = () => {
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
-            <p className="text-xl text-muted-foreground">Assistive Vision Guide</p>
-            <p className="text-accessible text-muted-foreground mt-2">
-              Your AI-powered vision assistant
-            </p>
+            <p className="text-lg text-muted-foreground mb-4">AI Vision Assistant</p>
+            <div className="text-sm text-muted-foreground/80 space-y-1">
+              <p>React • Lovable AI • Google Gemini</p>
+              <p>Speech Synthesis • PWA</p>
+            </div>
           </div>
 
           {/* Main Action Buttons */}

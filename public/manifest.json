@@ -1,7 +1,7 @@
 {
   "name": "NoonGil - Assistive Vision App",
   "short_name": "NoonGil",
-  "description": "AI-powered assistive vision app for object detection, text recognition, and emergency help",
+  "description": "AI vision app for object detection and text recognition",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
