@@ -19,12 +19,12 @@ const Index = () => {
   const handleDetectObjects = () => {
     setAnalysisMode('object');
     setCurrentMode('camera');
-    
+
     // Provide haptic feedback
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
-    
+
     // Announce action for screen readers
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance('Opening camera for object detection');
@@ -36,12 +36,12 @@ const Index = () => {
   const handleReadText = () => {
     setAnalysisMode('text');
     setCurrentMode('camera');
-    
+
     // Provide haptic feedback
     if (navigator.vibrate) {
       navigator.vibrate(50);
     }
-    
+
     // Announce action for screen readers
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance('Opening camera for text recognition');
@@ -52,12 +52,12 @@ const Index = () => {
 
   const handleEmergencyHelp = () => {
     setCurrentMode('emergency');
-    
+
     // Strong haptic feedback for emergency
     if (navigator.vibrate) {
       navigator.vibrate([100, 50, 100]);
     }
-    
+
     // Announce emergency mode
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance('Emergency help activated');
@@ -69,7 +69,7 @@ const Index = () => {
   const handleImageCapture = (imageSrc: string) => {
     setCapturedImage(imageSrc);
     setCurrentMode('analysis');
-    
+
     toast({
       title: "Photo Captured",
       description: "Analyzing image...",
@@ -79,12 +79,12 @@ const Index = () => {
   const handleBackToHome = () => {
     setCurrentMode('home');
     setCapturedImage(null);
-    
+
     // Stop any ongoing speech
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
-    
+
     // Provide haptic feedback
     if (navigator.vibrate) {
       navigator.vibrate(50);
@@ -106,7 +106,7 @@ const Index = () => {
             <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
             <p className="text-lg text-muted-foreground mb-4">AI Vision Assistant</p>
             <div className="text-sm text-muted-foreground/80 space-y-1">
-              <p>React • Google Gemini 1.5 Flash</p>
+              <p>React • Google Gemini 2.5 Flash</p>
               <p>Speech Synthesis • PWA</p>
             </div>
           </div>

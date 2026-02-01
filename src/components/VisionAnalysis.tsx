@@ -3,7 +3,6 @@ import { Eye, FileText, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 interface VisionAnalysisProps {
   imageSrc: string;
@@ -31,50 +30,78 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({ imageSrc, mode, onBack 
     setIsLoading(true);
     setAnalysis(null);
 
+    const base64Data = imageSrc.split(',')[1];
+    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+    if (!geminiApiKey) {
+      handleAnalysisError(new Error('Gemini API key is missing. Please add VITE_GEMINI_API_KEY to your .env file.'));
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      // Convert base64 to blob for better handling
-      const response = await fetch(imageSrc);
-      const blob = await response.blob();
-      const base64Data = imageSrc.split(',')[1];
+      const prompt = mode === 'object'
+        ? 'You are an assistive vision AI. Provide a crisp, concise description of the scene in 2-3 sentences. Focus on key objects, people, and actions.'
+        : 'Extract and return all text visible in this image. Include text from signs, labels, documents, books, screens, or any written content. If no text is found, say "No text detected in this image."';
 
-      const { data, error } = await supabase.functions.invoke('vision-analysis', {
-        body: {
-          image: base64Data,
-          mode: mode,
-        },
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+            ]
+          }]
+        })
       });
 
-      if (error) {
-        console.error('Vision analysis error:', error);
-        throw new Error(error.message || 'Failed to analyze image');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || 'Gemini API call failed');
       }
 
-      if (data) {
-        setAnalysis(data);
-        // Provide haptic feedback for successful analysis
-        if (navigator.vibrate) {
-          navigator.vibrate([50, 50, 50]);
-        }
-        
-        // Auto-speak the result
-        setTimeout(() => {
-          speakText(data.description || data.detectedText || 'Analysis complete');
-        }, 500);
-      }
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) throw new Error('No analysis result received from Gemini');
+
+      handleAnalysisSuccess({
+        description: mode === 'object' ? text : undefined,
+        detectedText: mode === 'text' ? text : undefined,
+        confidence: 0.9
+      });
     } catch (error) {
-      console.error('Analysis error:', error);
-      toast({
-        title: "Analysis Failed",
-        description: error instanceof Error ? error.message : "Failed to analyze image. Please try again.",
-        variant: "destructive",
-      });
-      
-      // Error haptic feedback
-      if (navigator.vibrate) {
-        navigator.vibrate([200, 100, 200]);
-      }
+      handleAnalysisError(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAnalysisSuccess = (data: AnalysisResult) => {
+    setAnalysis(data);
+    if (navigator.vibrate) {
+      navigator.vibrate([50, 50, 50]);
+    }
+
+    setTimeout(() => {
+      speakText(data.description || data.detectedText || 'Analysis complete');
+    }, 500);
+  };
+
+  const handleAnalysisError = (error: any) => {
+    console.error('Analysis error:', error);
+    toast({
+      title: "Analysis Failed",
+      description: error instanceof Error ? error.message : "Failed to analyze image. Please try again.",
+      variant: "destructive",
+    });
+
+    if (navigator.vibrate) {
+      navigator.vibrate([200, 100, 200]);
     }
   };
 
@@ -82,12 +109,12 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({ imageSrc, mode, onBack 
     if ('speechSynthesis' in window) {
       // Stop any current speech
       window.speechSynthesis.cancel();
-      
+
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 0.8;
       utterance.pitch = 1;
       utterance.volume = 1;
-      
+
       utterance.onstart = () => {
         setIsSpeaking(true);
         // Provide haptic feedback when speech starts
@@ -95,7 +122,7 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({ imageSrc, mode, onBack 
           navigator.vibrate(50);
         }
       };
-      
+
       utterance.onend = () => {
         setIsSpeaking(false);
       };
