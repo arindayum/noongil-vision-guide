@@ -42,7 +42,7 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({ imageSrc, mode, onBack 
 
     try {
       const prompt = mode === 'object'
-        ? 'You are an assistive vision AI. Provide a crisp, concise description of the scene in 2-3 sentences. Focus on key objects, people, and actions.'
+        ? 'You are an assistive vision AI. Provide a crisp, concise description of the scene in 1-2 sentences. Focus on key objects, people, and actions.'
         : 'Extract and return all text visible in this image. Include text from signs, labels, documents, books, screens, or any written content. If no text is found, say "No text detected in this image."';
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`;
