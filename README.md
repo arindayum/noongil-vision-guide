@@ -1,73 +1,61 @@
-# Welcome to your Lovable project
+# NoonGil - Assistive Vision AI
 
-## Project info
+NoonGil is a voice-controlled Android application designed to assist visually impaired individuals by providing real-time scene descriptions and text recognition.
 
-**URL**: https://lovable.dev/projects/1095b9f0-ac2a-424a-bf1d-d9e0bd94720a
+## Features
 
-## How can I edit this code?
+- **Voice Control**: Navigate the app using natural voice commands ("Describe scene", "Read text", "Emergency help").
+- **Object Detection**: Get detailed descriptions of your surroundings powered by Gemini 2.5 Flash.
+- **Text Recognition (OCR)**: Read signs, labels, and documents aloud.
+- **Emergency Assistance**: Quickly trigger a loud alert or call emergency services.
+- **Native Text-to-Speech**: High-quality audio output using the Android system voice engine.
 
-There are several ways of editing your application.
+## Built With
 
-**Use Lovable**
+- **Framework**: React + Vite
+- **Mobile Integration**: Capacitor
+- **AI Model**: Google Gemini 2.5 Flash (Vision)
+- **UI Components**: shadcn/ui + Tailwind CSS
+- **Voice Engine**: Web Speech API (Recognition) + Capacitor Text-to-Speech (Native)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/1095b9f0-ac2a-424a-bf1d-d9e0bd94720a) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js & npm
+- Android Studio (for mobile deployment)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+1. Clone the repository
+2. Install dependencies:
+   ```sh
+   npm install
+   ```
+3. Create a `.env` file and add your Gemini API key:
+   ```env
+   VITE_GEMINI_API_KEY=your_key_here
+   ```
+4. Build the project:
+   ```sh
+   npm run build
+   ```
+5. Sync with Android:
+   ```sh
+   npx cap sync android
+   ```
+6. Open in Android Studio:
+   ```sh
+   npx cap open android
+   ```
 
-Follow these steps:
+## Development
 
+To run the web version locally:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## License
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/1095b9f0-ac2a-424a-bf1d-d9e0bd94720a) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT

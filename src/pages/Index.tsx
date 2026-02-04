@@ -188,11 +188,7 @@ const Index = () => {
               </div>
             )}
             <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
-            <p className="text-lg text-muted-foreground mb-4">AI Vision Assistant</p>
-            <div className="text-sm text-muted-foreground/80 space-y-1">
-              <p>React • Google Gemini 2.5 Flash</p>
-              <p>Speech Synthesis • PWA</p>
-            </div>
+            <p className="text-lg text-muted-foreground">AI Vision Assistant</p>
           </div>
 
           {/* Main Action Buttons */}
@@ -270,23 +266,7 @@ const Index = () => {
           </div>
 
           {/* Footer */}
-          <div className="text-center space-y-4">
-            <div className="bg-muted/50 p-2 rounded text-[10px] font-mono text-left inline-block">
-              <p>Secure Context: {window.isSecureContext ? "YES" : "NO"}</p>
-              <p>SpeechSynth: {('speechSynthesis' in window) ? "YES" : "NO"}</p>
-              <p>SpeechRecog: {((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) ? "YES" : "NO"}</p>
-              <p>User Agent: {navigator.userAgent.slice(0, 50)}...</p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-2 h-6 text-[8px] w-full"
-                onClick={() => {
-                  speak("Speech test successful");
-                }}
-              >
-                TEST SPEECH
-              </Button>
-            </div>
+          <div className="text-center">
             <p className="text-sm text-muted-foreground">
               Tap any button to get started. All features include voice guidance.
             </p>
