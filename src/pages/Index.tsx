@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Eye, FileText, AlertTriangle, Settings, Camera as CameraIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +6,9 @@ import Camera from '@/components/Camera';
 import VisionAnalysis from '@/components/VisionAnalysis';
 import EmergencyHelp from '@/components/EmergencyHelp';
 import { useToast } from '@/hooks/use-toast';
+import { useVoiceCommands } from '@/hooks/useVoiceCommands';
+import { speak, stop } from '@/utils/speech';
+import { Capacitor } from '@capacitor/core';
 
 type AppMode = 'home' | 'camera' | 'analysis' | 'emergency';
 type AnalysisMode = 'object' | 'text';
@@ -14,7 +17,50 @@ const Index = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('home');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('object');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [isAutoCapturing, setIsAutoCapturing] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const { toast } = useToast();
+
+  const speakAnnouncement = (text: string) => {
+    speak(text);
+  };
+
+  const { isListening, error: voiceError } = useVoiceCommands({
+    onDescribe: () => {
+      setAnalysisMode('object');
+      setCurrentMode('camera');
+      setIsAutoCapturing(true);
+      speakAnnouncement('Detecting objects. Capturing in three seconds. Please hold your phone steady.');
+    },
+    onRead: () => {
+      setAnalysisMode('text');
+      setCurrentMode('camera');
+      setIsAutoCapturing(true);
+      speakAnnouncement('Reading text. Capturing in three seconds. Please hold your phone steady.');
+    },
+    onEmergency: () => {
+      handleEmergencyHelp();
+    },
+    onStop: () => {
+      handleBackToHome();
+    }
+  }, hasInteracted);
+
+  useEffect(() => {
+    if (voiceError) {
+      toast({
+        title: "Voice Control Error",
+        description: voiceError,
+        variant: "destructive",
+      });
+    }
+  }, [voiceError, toast]);
+
+  useEffect(() => {
+    if (hasInteracted) {
+      speakAnnouncement('NoonGil activated. Say "Describe scene" or "Read text" to start.');
+    }
+  }, [hasInteracted]);
 
   const handleDetectObjects = () => {
     setAnalysisMode('object');
@@ -69,6 +115,7 @@ const Index = () => {
   const handleImageCapture = (imageSrc: string) => {
     setCapturedImage(imageSrc);
     setCurrentMode('analysis');
+    setIsAutoCapturing(false);
 
     toast({
       title: "Photo Captured",
@@ -79,6 +126,7 @@ const Index = () => {
   const handleBackToHome = () => {
     setCurrentMode('home');
     setCapturedImage(null);
+    setIsAutoCapturing(false);
 
     // Stop any ongoing speech
     if ('speechSynthesis' in window) {
@@ -96,6 +144,31 @@ const Index = () => {
     setCapturedImage(null);
   };
 
+  const handleActivate = () => {
+    setHasInteracted(true);
+
+    // Prime the speech engine
+    speak('NoonGil activated');
+
+    if (navigator.vibrate) {
+      navigator.vibrate([50, 50]);
+    }
+  };
+
+  if (!hasInteracted) {
+    return (
+      <div className="min-h-screen bg-primary flex items-center justify-center p-8">
+        <Button
+          onClick={handleActivate}
+          className="w-full h-64 text-4xl font-bold bg-white text-primary rounded-3xl shadow-2xl transition-transform active:scale-95"
+          aria-label="Tap to activate NoonGil Voice Assistant"
+        >
+          TAP ANYWHERE TO START NOONGIL
+        </Button>
+      </div>
+    );
+  }
+
   // Home Screen
   if (currentMode === 'home') {
     return (
@@ -103,6 +176,17 @@ const Index = () => {
         <div className="max-w-lg mx-auto">
           {/* Header */}
           <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className={`h-3 w-3 rounded-full ${isListening ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Voice Control {isListening ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            {voiceError && (
+              <div className="bg-destructive/10 text-destructive text-xs p-2 rounded-md mb-4 font-medium">
+                Voice Error: {voiceError}
+              </div>
+            )}
             <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
             <p className="text-lg text-muted-foreground mb-4">AI Vision Assistant</p>
             <div className="text-sm text-muted-foreground/80 space-y-1">
@@ -186,7 +270,23 @@ const Index = () => {
           </div>
 
           {/* Footer */}
-          <div className="text-center">
+          <div className="text-center space-y-4">
+            <div className="bg-muted/50 p-2 rounded text-[10px] font-mono text-left inline-block">
+              <p>Secure Context: {window.isSecureContext ? "YES" : "NO"}</p>
+              <p>SpeechSynth: {('speechSynthesis' in window) ? "YES" : "NO"}</p>
+              <p>SpeechRecog: {((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition) ? "YES" : "NO"}</p>
+              <p>User Agent: {navigator.userAgent.slice(0, 50)}...</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 h-6 text-[8px] w-full"
+                onClick={() => {
+                  speak("Speech test successful");
+                }}
+              >
+                TEST SPEECH
+              </Button>
+            </div>
             <p className="text-sm text-muted-foreground">
               Tap any button to get started. All features include voice guidance.
             </p>
@@ -203,6 +303,7 @@ const Index = () => {
         onCapture={handleImageCapture}
         onClose={handleBackToHome}
         isActive={true}
+        autoCaptureDelay={isAutoCapturing ? 3500 : undefined}
       />
     );
   }

@@ -3,6 +3,7 @@ import { Eye, FileText, Volume2, VolumeX, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { speak, stop } from '@/utils/speech';
 
 interface VisionAnalysisProps {
   imageSrc: string;
@@ -106,51 +107,16 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({ imageSrc, mode, onBack 
   };
 
   const speakText = (text: string) => {
-    if ('speechSynthesis' in window) {
-      // Stop any current speech
-      window.speechSynthesis.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.8;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        // Provide haptic feedback when speech starts
-        if (navigator.vibrate) {
-          navigator.vibrate(50);
-        }
-      };
-
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        toast({
-          title: "Speech Error",
-          description: "Unable to read text aloud",
-          variant: "destructive",
-        });
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } else {
-      toast({
-        title: "Speech Not Available",
-        description: "Text-to-speech is not supported on this device",
-        variant: "destructive",
-      });
-    }
+    speak(text);
+    // Note: isSpeaking state management might be less accurate with native TTS
+    // but better than nothing for visual feedback.
+    setIsSpeaking(true);
+    setTimeout(() => setIsSpeaking(false), 5000); // Rough estimate fallback
   };
 
   const stopSpeech = () => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-    }
+    stop();
+    setIsSpeaking(false);
   };
 
   const toggleSpeech = () => {
