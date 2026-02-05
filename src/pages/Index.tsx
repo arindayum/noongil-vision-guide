@@ -58,7 +58,7 @@ const Index = () => {
 
   useEffect(() => {
     if (hasInteracted) {
-      speakAnnouncement('NoonGil activated. Say "Describe scene" or "Read text" to start.');
+      speakAnnouncement('dour Drishti activated. Say "Describe scene" or "Read text" to start.');
     }
   }, [hasInteracted]);
 
@@ -148,7 +148,7 @@ const Index = () => {
     setHasInteracted(true);
 
     // Prime the speech engine
-    speak('NoonGil activated');
+    speak('DoorDrushti activated');
 
     if (navigator.vibrate) {
       navigator.vibrate([50, 50]);
@@ -163,7 +163,7 @@ const Index = () => {
           className="w-full h-64 text-4xl font-bold bg-white text-primary rounded-3xl shadow-2xl transition-transform active:scale-95"
           aria-label="Tap to activate NoonGil Voice Assistant"
         >
-          TAP ANYWHERE TO START NOONGIL
+          TAP ANYWHERE TO START DoorDrushti
         </Button>
       </div>
     );
@@ -187,7 +187,7 @@ const Index = () => {
                 Voice Error: {voiceError}
               </div>
             )}
-            <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
+            <h1 className="text-3xl font-bold mb-2">DoorDrushti</h1>
             <p className="text-lg text-muted-foreground">AI Vision Assistant</p>
           </div>
 
@@ -197,7 +197,7 @@ const Index = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-3">
                   <Eye className="h-6 w-6 text-primary" />
-                  Detect Objects
+                  Describe Scene
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -211,7 +211,7 @@ const Index = () => {
                   aria-label="Start object detection"
                 >
                   <CameraIcon className="mr-3" />
-                  Detect Objects
+                  Describe Scene
                 </Button>
               </CardContent>
             </Card>
