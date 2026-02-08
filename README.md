@@ -1,6 +1,6 @@
-# NoonGil - Assistive Vision AI
+# DoorDrushti - Assistive Vision AI
 
-NoonGil is a voice-controlled Android application designed to assist visually impaired individuals by providing real-time scene descriptions and text recognition.
+DoorDrushti is a voice-controlled Android application designed to assist visually impaired individuals by providing real-time scene descriptions and text recognition.
 
 ## Features
 
