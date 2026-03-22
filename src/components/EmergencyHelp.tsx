@@ -1,115 +1,87 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { AlertTriangle, Phone, Volume2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { speak } from '@/utils/speech';
 
 interface EmergencyHelpProps {
   onClose: () => void;
+  emergencyNumber?: string; // configurable — defaults to 112 (international)
 }
 
-const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
+// Declare webkitAudioContext once
+const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
+
+const playBeep = (audioCtx: AudioContext, frequency = 880, duration = 0.7): Promise<void> => {
+  return new Promise(resolve => {
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    oscillator.type = 'sine';
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.8, audioCtx.currentTime + 0.05);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + duration);
+    oscillator.onended = () => resolve();
+  });
+};
+
+const EmergencyHelp: React.FC<EmergencyHelpProps> = ({
+  onClose,
+  emergencyNumber = '112',
+}) => {
   const [isAlertActive, setIsAlertActive] = useState(false);
-  const [alertAudio, setAlertAudio] = useState<HTMLAudioElement | null>(null);
+  const shouldStopRef = useRef(false);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const alertStatusRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Create audio context for emergency alert
-    const audio = new Audio();
-    audio.preload = 'auto';
-    
-    // Create a simple alert tone using Web Audio API
-    const createAlertTone = () => {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.7, audioContext.currentTime + 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.1, audioContext.currentTime + 0.5);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.5);
-      
-      return new Promise(resolve => {
-        oscillator.onended = resolve;
-      });
-    };
-
-    setAlertAudio(audio);
-
-    return () => {
-      if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    };
-  }, []);
-
-  const startEmergencyAlert = async () => {
+  const startEmergencyAlert = useCallback(async () => {
+    shouldStopRef.current = false;
     setIsAlertActive(true);
-    
-    // Strong haptic feedback
+
+    // Move focus to alert status for screen readers
+    setTimeout(() => alertStatusRef.current?.focus(), 50);
+
     if (navigator.vibrate) {
       navigator.vibrate([500, 200, 500, 200, 500]);
     }
 
-    // Play alert sound multiple times
+    // Reuse a single AudioContext for the entire alert sequence
+    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+      audioCtxRef.current = new AudioCtx();
+    }
+
     for (let i = 0; i < 5; i++) {
-      if (!isAlertActive) break;
-      
+      if (shouldStopRef.current) break;
       try {
-        // Create alert tone using Web Audio API
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.8, audioContext.currentTime + 0.1);
-        gainNode.gain.exponentialRampToValueAtTime(0.1, audioContext.currentTime + 0.8);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.8);
-        
-        await new Promise(resolve => {
-          oscillator.onended = resolve;
-        });
-        
-        // Wait between sounds
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Alternate between two frequencies for a more urgent sound
+        await playBeep(audioCtxRef.current, i % 2 === 0 ? 880 : 660, 0.7);
+        if (!shouldStopRef.current) {
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
       } catch (error) {
-        console.error('Audio error:', error);
+        if (import.meta.env.DEV) console.error('Audio error:', error);
       }
     }
 
-    // Speak emergency message
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(
-        "Emergency alert activated. This is a request for assistance. Please help if you can hear this message."
-      );
-      utterance.rate = 1;
-      utterance.pitch = 1;
-      utterance.volume = 1;
-      window.speechSynthesis.speak(utterance);
+    if (!shouldStopRef.current) {
+      speak('Emergency alert activated. This is a request for assistance. Please help if you can hear this message.');
     }
-  };
+  }, []);
 
-  const stopAlert = () => {
+  const stopAlert = useCallback(() => {
+    shouldStopRef.current = true;
     setIsAlertActive(false);
-    
-    if (alertAudio) {
-      alertAudio.pause();
-      alertAudio.currentTime = 0;
+
+    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+      audioCtxRef.current.close();
+      audioCtxRef.current = null;
     }
 
     if ('speechSynthesis' in window) {
@@ -119,12 +91,10 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
     if (navigator.vibrate) {
       navigator.vibrate(0);
     }
-  };
+  }, []);
 
   const callEmergency = () => {
-    // In a real app, this would dial emergency services
-    // For demo purposes, we'll just show the number
-    window.location.href = 'tel:911';
+    window.location.href = `tel:${emergencyNumber}`;
   };
 
   return (
@@ -134,37 +104,35 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-destructive">Emergency Help</h1>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              aria-label="Close emergency help"
-            >
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close emergency help">
               <X className="h-6 w-6" />
             </Button>
           </div>
 
-          {/* Alert Status */}
-          {isAlertActive && (
-            <Card className="border-destructive bg-destructive/10">
-              <CardContent className="p-6 text-center">
-                <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4 animate-pulse" />
-                <p className="text-xl font-bold text-destructive mb-4">
-                  EMERGENCY ALERT ACTIVE
-                </p>
-                <Button
-                  size="xl"
-                  variant="destructive"
-                  onClick={stopAlert}
-                  className="w-full"
-                >
-                  Stop Alert
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          {/* Alert Status — receives focus when alert activates */}
+          <div
+            ref={alertStatusRef}
+            tabIndex={-1}
+            aria-live="assertive"
+            aria-atomic="true"
+            className="outline-none"
+          >
+            {isAlertActive && (
+              <Card className="border-destructive bg-destructive/10">
+                <CardContent className="p-6 text-center">
+                  <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4 animate-pulse" />
+                  <p className="text-xl font-bold text-destructive mb-4">
+                    EMERGENCY ALERT ACTIVE
+                  </p>
+                  <Button size="xl" variant="destructive" onClick={stopAlert} className="w-full">
+                    Stop Alert
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
-          {/* Emergency Actions */}
+          {/* Actions */}
           <div className="space-y-4">
             <Card>
               <CardHeader>
@@ -175,7 +143,7 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
               </CardHeader>
               <CardContent>
                 <p className="text-accessible text-muted-foreground mb-4">
-                  Activate a loud audio alert and vibration to attract attention
+                  Plays a loud alternating alarm and vibrates to attract attention
                 </p>
                 <Button
                   size="xl"
@@ -199,28 +167,23 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
               </CardHeader>
               <CardContent>
                 <p className="text-accessible text-muted-foreground mb-4">
-                  Call emergency services (911 in US)
+                  Call emergency services ({emergencyNumber})
                 </p>
-                <Button
-                  size="xl"
-                  variant="destructive"
-                  onClick={callEmergency}
-                  className="w-full"
-                >
+                <Button size="xl" variant="destructive" onClick={callEmergency} className="w-full">
                   <Phone className="mr-3" />
-                  Call 911
+                  Call {emergencyNumber}
                 </Button>
               </CardContent>
             </Card>
           </div>
 
-          {/* Instructions */}
+          {/* Info */}
           <Card className="bg-muted">
             <CardContent className="p-6">
               <h3 className="font-bold text-lg mb-3">Emergency Features</h3>
               <ul className="space-y-2 text-accessible">
-                <li>• Sound Alert: Plays loud sounds and vibrates your device</li>
-                <li>• Emergency Call: Connects to emergency services</li>
+                <li>• Sound Alert: Plays alternating alarm tones and vibrates</li>
+                <li>• Emergency Call: Connects to emergency services ({emergencyNumber})</li>
                 <li>• Voice Announcement: Speaks emergency message aloud</li>
                 <li>• Strong Vibration: Attracts attention through touch</li>
               </ul>
