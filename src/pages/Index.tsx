@@ -1,21 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, FileText, AlertTriangle, Clock, Globe, Settings } from 'lucide-react';
+import { Eye, FileText, AlertTriangle, Clock, Settings, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Camera from '@/components/Camera';
-import VisionAnalysis from '@/components/VisionAnalysis';
+import VisionAnalysis, { type AnalysisMode, type StructuredResult } from '@/components/VisionAnalysis';
 import EmergencyHelp from '@/components/EmergencyHelp';
 import HistoryScreen from '@/components/HistoryScreen';
 import SettingsScreen from '@/components/SettingsScreen';
+import StatsCard from '@/components/StatsCard';
 import OnboardingScreen, { hasCompletedOnboarding } from '@/components/OnboardingScreen';
 import { useToast } from '@/hooks/use-toast';
 import { useVoiceCommands } from '@/hooks/useVoiceCommands';
 import { useHistory } from '@/hooks/useHistory';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import { useLanguage, LANGUAGES, type AppLanguage } from '@/contexts/LanguageContext';
 import { speak, stop } from '@/utils/speech';
 
 type AppMode = 'home' | 'camera' | 'analysis' | 'emergency' | 'history' | 'settings';
-type AnalysisMode = 'object' | 'text';
 
 const Index = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('home');
@@ -28,6 +29,7 @@ const Index = () => {
 
   const { toast } = useToast();
   const { addEntry } = useHistory();
+  const { data: analyticsData, track, incrementSession } = useAnalytics();
   const { language, setLanguage } = useLanguage();
 
   const { isListening, error: voiceError } = useVoiceCommands(
@@ -36,19 +38,20 @@ const Index = () => {
         setAnalysisMode('object');
         setCurrentMode('camera');
         setIsAutoCapturing(true);
-        speak('Detecting objects. Capturing in three seconds. Please hold your phone steady.');
+        speak('Detecting objects. Capturing in 3 seconds. Please hold steady.');
       }, []),
       onRead: useCallback(() => {
         setAnalysisMode('text');
         setCurrentMode('camera');
         setIsAutoCapturing(true);
-        speak('Reading text. Capturing in three seconds. Please hold your phone steady.');
+        speak('Reading text. Capturing in 3 seconds. Please hold steady.');
       }, []),
       onEmergency: useCallback(() => {
         setCurrentMode('emergency');
+        track('emergencyActivations');
         speak('Emergency help activated');
         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      }, []),
+      }, [track]),
       onStop: useCallback(() => {
         setCurrentMode('home');
         setCapturedImage(null);
@@ -61,13 +64,12 @@ const Index = () => {
   );
 
   useEffect(() => {
-    if (voiceError) {
-      toast({ title: 'Voice Control Error', description: voiceError, variant: 'destructive' });
-    }
+    if (voiceError) toast({ title: 'Voice Control Error', description: voiceError, variant: 'destructive' });
   }, [voiceError, toast]);
 
   useEffect(() => {
     if (hasInteracted) {
+      incrementSession();
       speak('NoonGil activated. Say "Describe scene" or "Read text" to start.');
     }
   }, [hasInteracted]);
@@ -76,10 +78,7 @@ const Index = () => {
     setHasInteracted(true);
     speak('NoonGil activated');
     if (navigator.vibrate) navigator.vibrate([50, 50]);
-    // Show onboarding if first time
-    if (!hasCompletedOnboarding()) {
-      setShowOnboarding(true);
-    }
+    if (!hasCompletedOnboarding()) setShowOnboarding(true);
   };
 
   const handleBackToHome = useCallback(() => {
@@ -89,6 +88,17 @@ const Index = () => {
     stop();
     if (navigator.vibrate) navigator.vibrate(50);
   }, []);
+
+  // Track analytics on analysis completion
+  const handleAnalysisComplete = useCallback((result: StructuredResult) => {
+    if (analysisMode === 'object') track('objectDetections');
+    if (analysisMode === 'text') {
+      track('textReads');
+      if (result.offline) track('offlineOCRUses');
+    }
+    if (analysisMode === 'hazard') track('hazardDetections');
+    if (result.warnings.length > 0 && analysisMode !== 'hazard') track('hazardDetections');
+  }, [analysisMode, track]);
 
   // Activate screen
   if (!hasInteracted) {
@@ -106,10 +116,7 @@ const Index = () => {
     );
   }
 
-  // Onboarding
-  if (showOnboarding) {
-    return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
-  }
+  if (showOnboarding) return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
 
   if (currentMode === 'camera') {
     return (
@@ -134,29 +141,23 @@ const Index = () => {
         mode={analysisMode}
         onBack={() => setCurrentMode('camera')}
         onSaveToHistory={addEntry}
+        onAnalysisComplete={handleAnalysisComplete}
       />
     );
   }
 
-  if (currentMode === 'emergency') {
-    return <EmergencyHelp onClose={handleBackToHome} />;
-  }
+  if (currentMode === 'emergency') return <EmergencyHelp onClose={handleBackToHome} />;
+  if (currentMode === 'history') return <HistoryScreen onClose={handleBackToHome} />;
+  if (currentMode === 'settings') return <SettingsScreen onClose={handleBackToHome} />;
 
-  if (currentMode === 'history') {
-    return <HistoryScreen onClose={handleBackToHome} />;
-  }
-
-  if (currentMode === 'settings') {
-    return <SettingsScreen onClose={handleBackToHome} />;
-  }
-
-  // Home screen
+  // ── Home screen ──────────────────────────────────────────────
   return (
     <main className="min-h-screen bg-background p-4">
       <div className="max-w-lg mx-auto">
+
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center gap-2 mb-3">
             <div
               className={`h-3 w-3 rounded-full ${isListening ? 'bg-success animate-pulse' : 'bg-destructive'}`}
               aria-hidden="true"
@@ -166,7 +167,7 @@ const Index = () => {
             </span>
           </div>
           {voiceError && (
-            <div role="alert" className="bg-destructive/10 text-destructive text-xs p-2 rounded-md mb-4 font-medium">
+            <div role="alert" className="bg-destructive/10 text-destructive text-xs p-2 rounded-md mb-3 font-medium">
               {voiceError}
             </div>
           )}
@@ -175,15 +176,14 @@ const Index = () => {
         </div>
 
         {/* Language selector */}
-        <div className="mb-6">
+        <div className="mb-5">
           <button
             onClick={() => setShowLanguagePicker(p => !p)}
             className="flex items-center gap-2 mx-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
             aria-label={`Language: ${language.label}. Tap to change.`}
             aria-expanded={showLanguagePicker}
           >
-            <Globe className="h-4 w-4" />
-            {language.label}
+            🌐 {language.label}
           </button>
           {showLanguagePicker && (
             <div className="flex justify-center gap-2 mt-3 flex-wrap" role="radiogroup" aria-label="Select language">
@@ -206,25 +206,22 @@ const Index = () => {
           )}
         </div>
 
+        {/* Stats card — only shows after some usage */}
+        <StatsCard data={analyticsData} />
+
         {/* Main actions */}
-        <div className="space-y-4 mb-8">
+        <div className="space-y-4 mb-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <Eye className="h-6 w-6 text-primary" />
-                Detect Objects
+                <Eye className="h-6 w-6 text-primary" />Detect Objects
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
                 Identify objects, people, and surroundings with distance estimation
               </p>
-              <Button
-                size="xl"
-                onClick={() => { setAnalysisMode('object'); setCurrentMode('camera'); speak('Opening camera for object detection'); if (navigator.vibrate) navigator.vibrate(50); }}
-                className="w-full"
-                aria-label="Start object detection"
-              >
+              <Button size="xl" onClick={() => { setAnalysisMode('object'); setCurrentMode('camera'); speak('Opening camera for object detection'); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label="Start object detection">
                 <Eye className="mr-3" />Detect Objects
               </Button>
             </CardContent>
@@ -233,22 +230,32 @@ const Index = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <FileText className="h-6 w-6 text-primary" />
-                Read Text
+                <FileText className="h-6 w-6 text-primary" />Read Text
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
                 Read signs, labels, documents, and any visible text
               </p>
-              <Button
-                size="xl"
-                variant="secondary"
-                onClick={() => { setAnalysisMode('text'); setCurrentMode('camera'); speak('Opening camera for text recognition'); if (navigator.vibrate) navigator.vibrate(50); }}
-                className="w-full"
-                aria-label="Start text recognition"
-              >
+              <Button size="xl" variant="secondary" onClick={() => { setAnalysisMode('text'); setCurrentMode('camera'); speak('Opening camera for text recognition'); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label="Start text recognition">
                 <FileText className="mr-3" />Read Text
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Hazard detection — new */}
+          <Card className="border-accent/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <ShieldAlert className="h-6 w-6 text-accent" />Hazard Detection
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-accessible text-muted-foreground mb-4">
+                Scan your surroundings for safety hazards — stairs, obstacles, wet floors
+              </p>
+              <Button size="xl" variant="accent" onClick={() => { setAnalysisMode('hazard'); setCurrentMode('camera'); speak('Hazard scan. Capturing in 3 seconds.'); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label="Start hazard detection">
+                <ShieldAlert className="mr-3" />Scan for Hazards
               </Button>
             </CardContent>
           </Card>
@@ -256,21 +263,14 @@ const Index = () => {
           <Card className="border-destructive/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <AlertTriangle className="h-6 w-6 text-destructive" />
-                Emergency Help
+                <AlertTriangle className="h-6 w-6 text-destructive" />Emergency Help
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
                 Sound alarm and connect to emergency services
               </p>
-              <Button
-                size="xl"
-                variant="destructive"
-                onClick={() => { setCurrentMode('emergency'); speak('Emergency help activated'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }}
-                className="w-full"
-                aria-label="Activate emergency help"
-              >
+              <Button size="xl" variant="destructive" onClick={() => { setCurrentMode('emergency'); track('emergencyActivations'); speak('Emergency help activated'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }} className="w-full" aria-label="Activate emergency help">
                 <AlertTriangle className="mr-3" />Emergency Help
               </Button>
             </CardContent>
@@ -278,7 +278,7 @@ const Index = () => {
         </div>
 
         {/* Footer */}
-        <div className="flex justify-center gap-4">
+        <div className="flex justify-center gap-4 mb-4">
           <Button variant="ghost" onClick={() => setCurrentMode('history')} aria-label="View history" className="text-muted-foreground gap-2">
             <Clock className="h-4 w-4" />History
           </Button>
@@ -287,7 +287,7 @@ const Index = () => {
           </Button>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-4">
+        <p className="text-center text-sm text-muted-foreground">
           Tap any button or use voice commands to get started.
         </p>
       </div>
