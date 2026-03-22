@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, FileText, Volume2, VolumeX, RotateCcw, AlertTriangle, Info, WifiOff } from 'lucide-react';
+import { Eye, FileText, Volume2, VolumeX, RotateCcw, AlertTriangle, Info, WifiOff, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -9,14 +9,17 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useOfflineOCR } from '@/hooks/useOfflineOCR';
 import type { HistoryEntry } from '@/hooks/useHistory';
 
+export type AnalysisMode = 'object' | 'text' | 'hazard';
+
 interface VisionAnalysisProps {
   imageSrc: string;
-  mode: 'object' | 'text';
+  mode: AnalysisMode;
   onBack: () => void;
   onSaveToHistory?: (entry: Omit<HistoryEntry, 'id' | 'timestamp'>) => void;
+  onAnalysisComplete?: (result: StructuredResult) => void;
 }
 
-interface StructuredResult {
+export interface StructuredResult {
   summary: string;
   objects: { name: string; distance?: string; position?: string }[];
   warnings: string[];
@@ -25,55 +28,48 @@ interface StructuredResult {
   offline?: boolean;
 }
 
-const CONFIDENCE_PREFIX: Record<string, string> = {
+export const CONFIDENCE_PREFIX: Record<string, string> = {
   high: 'I can clearly see',
   medium: 'I think I can see',
   low: "I'm not entirely sure, but",
 };
 
-const buildObjectPrompt = (langInstruction: string): string => `
+const buildObjectPrompt = (lang: string) => `
 You are an assistive vision AI helping a visually impaired person understand their surroundings.
-Analyse the image and respond ONLY with a JSON object — no markdown, no preamble.
-
-JSON schema:
+Respond ONLY with a JSON object — no markdown, no preamble.
 {
-  "summary": "1–2 sentence spoken description of the scene",
-  "objects": [{ "name": "string", "distance": "estimated distance e.g. 1 metre", "position": "e.g. left, centre, right, ahead" }],
-  "warnings": ["any safety hazards: obstacles, stairs, traffic, wet floors, open flames, etc."],
+  "summary": "1–2 sentence spoken scene description",
+  "objects": [{ "name": "string", "distance": "e.g. 1 metre", "position": "e.g. left, ahead, right" }],
+  "warnings": ["safety hazards with position and distance"],
   "confidence": "high" | "medium" | "low"
 }
+Rules: warnings non-empty if ANY hazard visible. distance+position mandatory if estimable. ${lang}`.trim();
 
-Rules:
-- warnings must be non-empty if ANY hazard is visible — safety-critical
-- distance and position are mandatory for every object if estimable
-- summary should be natural spoken language, not a list
-- ${langInstruction}
-`.trim();
-
-const buildTextPrompt = (langInstruction: string): string => `
+const buildTextPrompt = (lang: string) => `
 You are an assistive vision AI helping a visually impaired person read text.
-Extract all visible text from the image and respond ONLY with a JSON object — no markdown, no preamble.
-
-JSON schema:
+Respond ONLY with a JSON object — no markdown, no preamble.
 {
-  "summary": "brief spoken intro e.g. 'This appears to be a medicine label'",
-  "detectedText": "full extracted text, preserving line breaks",
-  "warnings": ["flag anything urgent: expiry dates, allergy warnings, danger labels, etc."],
+  "summary": "brief spoken intro e.g. 'This is a medicine label'",
+  "detectedText": "all visible text, preserving line breaks",
+  "warnings": ["urgent items: expiry dates, allergy warnings, danger labels"],
   "objects": [],
   "confidence": "high" | "medium" | "low"
 }
+Rules: if no text found, detectedText = "No text detected in this image." ${lang}`.trim();
 
-Rules:
-- If no text is found, set detectedText to "No text detected in this image."
-- warnings should flag anything urgent a blind person needs to know
-- ${langInstruction}
-`.trim();
+const buildHazardPrompt = (lang: string) => `
+You are a safety AI for a visually impaired person. Your ONLY job is to identify safety hazards.
+Respond ONLY with a JSON object — no markdown, no preamble.
+{
+  "summary": "1 sentence safety assessment e.g. 'The path looks clear' or 'There are hazards ahead'",
+  "objects": [],
+  "warnings": ["every hazard with position + distance: e.g. 'Stairs ahead, 2 metres', 'Wet floor to the left'"],
+  "confidence": "high" | "medium" | "low"
+}
+Rules: if NO hazards visible, warnings = [] and summary = "The path looks clear". Be thorough and specific. ${lang}`.trim();
 
 const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
-  imageSrc,
-  mode,
-  onBack,
-  onSaveToHistory,
+  imageSrc, mode, onBack, onSaveToHistory, onAnalysisComplete,
 }) => {
   const [result, setResult] = useState<StructuredResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,25 +87,23 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     if (mode === 'text' && r.detectedText && r.detectedText !== 'No text detected in this image.') {
       parts.push('The text reads: ' + r.detectedText);
     }
-    if (r.offline) parts.push('Note: offline mode was used. Results may be less accurate.');
+    if (r.offline) parts.push('Note: offline mode used. Results may be less accurate.');
     return parts.join('. ');
   }, [mode]);
 
   const speakResult = useCallback((r: StructuredResult) => {
-    const ttsText = buildTTSText(r);
     setIsSpeaking(true);
-    speak(ttsText, () => setIsSpeaking(false));
+    speak(buildTTSText(r), () => setIsSpeaking(false));
   }, [buildTTSText]);
 
   const runOfflineOCR = useCallback(async (): Promise<StructuredResult | null> => {
-    const ocrResult = await recognizeText(imageSrc);
-    if (!ocrResult) return null;
+    const ocr = await recognizeText(imageSrc);
+    if (!ocr) return null;
     return {
       summary: 'Text extracted using offline recognition.',
-      objects: [],
-      warnings: [],
-      detectedText: ocrResult.text,
-      confidence: ocrResult.confidence > 80 ? 'high' : ocrResult.confidence > 50 ? 'medium' : 'low',
+      objects: [], warnings: [],
+      detectedText: ocr.text,
+      confidence: ocr.confidence > 80 ? 'high' : ocr.confidence > 50 ? 'medium' : 'low',
       offline: true,
     };
   }, [imageSrc, recognizeText]);
@@ -122,26 +116,13 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     const base64Data = imageSrc.split(',')[1];
     const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-    // Check connectivity
-    const isOnline = navigator.onLine;
-
-    // Offline + text mode → use Tesseract directly
-    if (!isOnline && mode === 'text') {
+    if (!navigator.onLine && mode === 'text') {
       const offlineResult = await runOfflineOCR();
       if (offlineResult) {
         setResult(offlineResult);
-        onSaveToHistory?.({
-          mode, imageSrc,
-          summary: offlineResult.summary,
-          warnings: offlineResult.warnings,
-          objects: offlineResult.objects,
-          detectedText: offlineResult.detectedText,
-          confidence: offlineResult.confidence,
-          language: language.code,
-        });
-        if (settings.autoSpeak) {
-          setTimeout(() => speakResult(offlineResult), 400);
-        }
+        onSaveToHistory?.({ mode, imageSrc, ...offlineResult, language: language.code });
+        onAnalysisComplete?.(offlineResult);
+        if (settings.autoSpeak) setTimeout(() => speakResult(offlineResult), 400);
       } else {
         toast({ title: 'Offline OCR Failed', description: 'Could not read text offline.', variant: 'destructive' });
       }
@@ -156,18 +137,16 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     }
 
     try {
-      const prompt = mode === 'object'
-        ? buildObjectPrompt(language.geminiInstruction)
-        : buildTextPrompt(language.geminiInstruction);
+      const prompt =
+        mode === 'object' ? buildObjectPrompt(language.geminiInstruction) :
+        mode === 'text'   ? buildTextPrompt(language.geminiInstruction) :
+                            buildHazardPrompt(language.geminiInstruction);
 
       const response = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': geminiApiKey,
-          },
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
           body: JSON.stringify({
             contents: [{ parts: [
               { text: prompt },
@@ -189,29 +168,23 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
 
       const parsed: StructuredResult = JSON.parse(rawText.replace(/```json|```/g, '').trim());
       setResult(parsed);
-      if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
 
-      onSaveToHistory?.({
-        mode, imageSrc,
-        summary: parsed.summary,
-        warnings: parsed.warnings,
-        objects: parsed.objects,
-        detectedText: parsed.detectedText,
-        confidence: parsed.confidence,
-        language: language.code,
-      });
-
-      if (settings.autoSpeak) {
-        setTimeout(() => speakResult(parsed), 400);
+      if (navigator.vibrate) {
+        navigator.vibrate(parsed.warnings.length > 0 ? [100, 50, 100, 50, 100] : [50, 50, 50]);
       }
 
+      onSaveToHistory?.({ mode, imageSrc, ...parsed, language: language.code });
+      onAnalysisComplete?.(parsed);
+
+      if (settings.autoSpeak) setTimeout(() => speakResult(parsed), 400);
+
     } catch (error: unknown) {
-      // If network failed mid-flight and mode is text, try offline OCR
       if (!navigator.onLine && mode === 'text') {
         toast({ title: 'No connection — trying offline OCR', description: 'Using on-device text recognition.' });
         const offlineResult = await runOfflineOCR();
         if (offlineResult) {
           setResult(offlineResult);
+          onAnalysisComplete?.(offlineResult);
           if (settings.autoSpeak) setTimeout(() => speakResult(offlineResult), 400);
           setIsLoading(false);
           return;
@@ -223,27 +196,22 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [imageSrc, mode, language, settings.autoSpeak, toast, onSaveToHistory, runOfflineOCR, speakResult]);
+  }, [imageSrc, mode, language, settings.autoSpeak, toast, onSaveToHistory, onAnalysisComplete, runOfflineOCR, speakResult]);
 
-  useEffect(() => {
-    analyzeImage();
-    return () => { stop(); };
-  }, [analyzeImage]);
+  useEffect(() => { analyzeImage(); return () => { stop(); }; }, [analyzeImage]);
 
-  const toggleSpeech = () => {
-    if (isSpeaking) { stop(); setIsSpeaking(false); }
-    else if (result) speakResult(result);
+  const modeConfig = {
+    object: { title: 'Object Detection',  icon: <Eye className="h-6 w-6" /> },
+    text:   { title: 'Text Recognition',  icon: <FileText className="h-6 w-6" /> },
+    hazard: { title: 'Hazard Detection',  icon: <ShieldAlert className="h-6 w-6 text-accent" /> },
   };
 
-  const confidenceColor: Record<string, string> = {
-    high: 'text-success',
-    medium: 'text-accent',
-    low: 'text-destructive',
-  };
+  const confidenceColor = { high: 'text-success', medium: 'text-accent', low: 'text-destructive' };
 
-  const loadingMessage = () => {
+  const loadingLabel = () => {
     if (ocrStatus === 'loading') return 'Loading offline engine…';
     if (ocrStatus === 'running') return `Recognising text… ${ocrProgress}%`;
+    if (mode === 'hazard') return 'Scanning for hazards…';
     return 'Analysing image…';
   };
 
@@ -252,72 +220,62 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={onBack} aria-label="Go back">← Back</Button>
-          <h1 className="text-2xl font-bold">
-            {mode === 'object' ? 'Object Detection' : 'Text Recognition'}
-          </h1>
+          <h1 className="text-2xl font-bold">{modeConfig[mode].title}</h1>
           <div className="w-20" />
         </div>
 
         <Card>
           <CardContent className="p-4">
-            <img
-              src={imageSrc}
-              alt="Captured image for analysis"
-              className="w-full h-64 object-cover rounded-lg border-2 border-border"
-            />
+            <img src={imageSrc} alt="Captured image for analysis" className="w-full h-64 object-cover rounded-lg border-2 border-border" />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">
-              {mode === 'object' ? <Eye className="h-6 w-6" /> : <FileText className="h-6 w-6" />}
-              Analysis Results
-            </CardTitle>
+            <CardTitle className="flex items-center gap-3">{modeConfig[mode].icon} Analysis Results</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading ? (
-              <div className="text-center py-8" role="status" aria-label={loadingMessage()}>
+              <div className="text-center py-8" role="status" aria-label={loadingLabel()}>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-                <p className="text-accessible text-muted-foreground" aria-live="polite">
-                  {loadingMessage()}
-                </p>
+                <p className="text-accessible text-muted-foreground" aria-live="polite">{loadingLabel()}</p>
                 {ocrStatus === 'running' && (
                   <div className="mt-3 mx-auto w-48 bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{ width: `${ocrProgress}%` }}
-                    />
+                    <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${ocrProgress}%` }} />
                   </div>
                 )}
               </div>
             ) : result ? (
               <div className="space-y-4">
-                {/* Offline badge */}
                 {result.offline && (
                   <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2 text-sm text-muted-foreground">
-                    <WifiOff className="h-4 w-4 shrink-0" />
-                    Offline mode — basic OCR (less accurate than AI)
+                    <WifiOff className="h-4 w-4 shrink-0" />Offline mode — basic OCR
                   </div>
                 )}
 
-                {/* Warnings */}
                 {result.warnings.length > 0 && (
                   <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle className="h-5 w-5 text-destructive" />
-                      <span className="font-bold text-destructive">Hazard Detected</span>
+                      <span className="font-bold text-destructive">{mode === 'hazard' ? 'Hazards Found' : 'Hazard Detected'}</span>
                     </div>
                     <ul className="space-y-1">
-                      {result.warnings.map((w, i) => (
-                        <li key={i} className="text-accessible text-destructive font-medium">• {w}</li>
-                      ))}
+                      {result.warnings.map((w, i) => <li key={i} className="text-accessible text-destructive font-medium">• {w}</li>)}
                     </ul>
                   </div>
                 )}
 
-                {/* Summary */}
+                {mode === 'hazard' && result.warnings.length === 0 && (
+                  <div className="bg-success/10 border border-success/30 rounded-lg p-4 flex items-center gap-3">
+                    <ShieldAlert className="h-6 w-6 text-success shrink-0" />
+                    <p className="font-bold text-success">Path looks clear — no hazards detected</p>
+                  </div>
+                )}
+
                 <div className="bg-muted p-4 rounded-lg">
+                  <p className="text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wider">
+                    {CONFIDENCE_PREFIX[result.confidence]}:
+                  </p>
                   <p className="text-accessible font-medium">{result.summary}</p>
                   <div className="flex items-center gap-1 mt-2">
                     <Info className="h-3 w-3 text-muted-foreground" />
@@ -327,7 +285,6 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                   </div>
                 </div>
 
-                {/* Objects */}
                 {mode === 'object' && result.objects.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Detected Objects</p>
@@ -335,35 +292,20 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                       {result.objects.map((obj, i) => (
                         <div key={i} className="flex items-center justify-between bg-secondary/50 rounded-lg px-4 py-2">
                           <span className="font-medium capitalize">{obj.name}</span>
-                          <span className="text-sm text-muted-foreground">
-                            {[obj.position, obj.distance].filter(Boolean).join(' · ')}
-                          </span>
+                          <span className="text-sm text-muted-foreground">{[obj.position, obj.distance].filter(Boolean).join(' · ')}</span>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Detected text */}
                 {mode === 'text' && result.detectedText && (
-                  <div className="bg-muted p-4 rounded-lg font-mono text-sm whitespace-pre-wrap">
-                    {result.detectedText}
-                  </div>
+                  <div className="bg-muted p-4 rounded-lg font-mono text-sm whitespace-pre-wrap">{result.detectedText}</div>
                 )}
 
-                {/* Controls */}
                 <div className="flex gap-3">
-                  <Button
-                    size="lg"
-                    variant={isSpeaking ? 'destructive' : 'accent'}
-                    onClick={toggleSpeech}
-                    className="flex-1"
-                    aria-label={isSpeaking ? 'Stop reading aloud' : 'Read result aloud'}
-                  >
-                    {isSpeaking
-                      ? <><VolumeX className="mr-2 h-5 w-5" />Stop Reading</>
-                      : <><Volume2 className="mr-2 h-5 w-5" />Read Aloud</>
-                    }
+                  <Button size="lg" variant={isSpeaking ? 'destructive' : 'accent'} onClick={() => { if (isSpeaking) { stop(); setIsSpeaking(false); } else if (result) speakResult(result); }} className="flex-1" aria-label={isSpeaking ? 'Stop reading' : 'Read aloud'}>
+                    {isSpeaking ? <><VolumeX className="mr-2 h-5 w-5" />Stop Reading</> : <><Volume2 className="mr-2 h-5 w-5" />Read Aloud</>}
                   </Button>
                   <Button size="lg" variant="outline" onClick={analyzeImage} disabled={isLoading} aria-label="Re-analyse">
                     <RotateCcw className="mr-2 h-5 w-5" />Re-analyse
@@ -373,9 +315,7 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
             ) : (
               <div className="text-center py-8">
                 <p className="text-accessible text-muted-foreground">No results. Try taking another photo.</p>
-                <Button size="lg" variant="outline" onClick={analyzeImage} className="mt-4">
-                  <RotateCcw className="mr-2" />Try Again
-                </Button>
+                <Button size="lg" variant="outline" onClick={analyzeImage} className="mt-4"><RotateCcw className="mr-2" />Try Again</Button>
               </div>
             )}
           </CardContent>
