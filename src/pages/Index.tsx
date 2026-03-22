@@ -1,18 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, FileText, AlertTriangle, Clock, Globe } from 'lucide-react';
+import { Eye, FileText, AlertTriangle, Clock, Globe, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Camera from '@/components/Camera';
 import VisionAnalysis from '@/components/VisionAnalysis';
 import EmergencyHelp from '@/components/EmergencyHelp';
 import HistoryScreen from '@/components/HistoryScreen';
+import SettingsScreen from '@/components/SettingsScreen';
+import OnboardingScreen, { hasCompletedOnboarding } from '@/components/OnboardingScreen';
 import { useToast } from '@/hooks/use-toast';
 import { useVoiceCommands } from '@/hooks/useVoiceCommands';
 import { useHistory } from '@/hooks/useHistory';
 import { useLanguage, LANGUAGES, type AppLanguage } from '@/contexts/LanguageContext';
 import { speak, stop } from '@/utils/speech';
 
-type AppMode = 'home' | 'camera' | 'analysis' | 'emergency' | 'history';
+type AppMode = 'home' | 'camera' | 'analysis' | 'emergency' | 'history' | 'settings';
 type AnalysisMode = 'object' | 'text';
 
 const Index = () => {
@@ -21,6 +23,7 @@ const Index = () => {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [isAutoCapturing, setIsAutoCapturing] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
 
   const { toast } = useToast();
@@ -59,7 +62,7 @@ const Index = () => {
 
   useEffect(() => {
     if (voiceError) {
-      toast({ title: "Voice Control Error", description: voiceError, variant: "destructive" });
+      toast({ title: 'Voice Control Error', description: voiceError, variant: 'destructive' });
     }
   }, [voiceError, toast]);
 
@@ -69,31 +72,14 @@ const Index = () => {
     }
   }, [hasInteracted]);
 
-  const handleDetectObjects = () => {
-    setAnalysisMode('object');
-    setCurrentMode('camera');
-    if (navigator.vibrate) navigator.vibrate(50);
-    speak('Opening camera for object detection');
-  };
-
-  const handleReadText = () => {
-    setAnalysisMode('text');
-    setCurrentMode('camera');
-    if (navigator.vibrate) navigator.vibrate(50);
-    speak('Opening camera for text recognition');
-  };
-
-  const handleEmergencyHelp = () => {
-    setCurrentMode('emergency');
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-    speak('Emergency help activated');
-  };
-
-  const handleImageCapture = (imageSrc: string) => {
-    setCapturedImage(imageSrc);
-    setCurrentMode('analysis');
-    setIsAutoCapturing(false);
-    toast({ title: "Photo Captured", description: "Analysing image…" });
+  const handleActivate = () => {
+    setHasInteracted(true);
+    speak('NoonGil activated');
+    if (navigator.vibrate) navigator.vibrate([50, 50]);
+    // Show onboarding if first time
+    if (!hasCompletedOnboarding()) {
+      setShowOnboarding(true);
+    }
   };
 
   const handleBackToHome = useCallback(() => {
@@ -103,12 +89,6 @@ const Index = () => {
     stop();
     if (navigator.vibrate) navigator.vibrate(50);
   }, []);
-
-  const handleActivate = () => {
-    setHasInteracted(true);
-    speak('NoonGil activated');
-    if (navigator.vibrate) navigator.vibrate([50, 50]);
-  };
 
   // Activate screen
   if (!hasInteracted) {
@@ -126,10 +106,20 @@ const Index = () => {
     );
   }
 
+  // Onboarding
+  if (showOnboarding) {
+    return <OnboardingScreen onComplete={() => setShowOnboarding(false)} />;
+  }
+
   if (currentMode === 'camera') {
     return (
       <Camera
-        onCapture={handleImageCapture}
+        onCapture={(imageSrc) => {
+          setCapturedImage(imageSrc);
+          setCurrentMode('analysis');
+          setIsAutoCapturing(false);
+          toast({ title: 'Photo Captured', description: 'Analysing image…' });
+        }}
         onClose={handleBackToHome}
         isActive={true}
         autoCaptureDelay={isAutoCapturing ? 3500 : undefined}
@@ -156,6 +146,10 @@ const Index = () => {
     return <HistoryScreen onClose={handleBackToHome} />;
   }
 
+  if (currentMode === 'settings') {
+    return <SettingsScreen onClose={handleBackToHome} />;
+  }
+
   // Home screen
   return (
     <main className="min-h-screen bg-background p-4">
@@ -168,16 +162,16 @@ const Index = () => {
               aria-hidden="true"
             />
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Voice Control {isListening ? 'Active' : 'Inactive'}
+              Voice {isListening ? 'Active' : 'Inactive'}
             </span>
           </div>
           {voiceError && (
             <div role="alert" className="bg-destructive/10 text-destructive text-xs p-2 rounded-md mb-4 font-medium">
-              Voice Error: {voiceError}
+              {voiceError}
             </div>
           )}
-          <h1 className="text-3xl font-bold mb-2">NoonGil</h1>
-          <p className="text-lg text-muted-foreground">AI Vision Assistant</p>
+          <h1 className="text-3xl font-bold mb-1">NoonGil</h1>
+          <p className="text-muted-foreground">AI Vision Assistant</p>
         </div>
 
         {/* Language selector */}
@@ -185,14 +179,14 @@ const Index = () => {
           <button
             onClick={() => setShowLanguagePicker(p => !p)}
             className="flex items-center gap-2 mx-auto text-sm text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={`Current language: ${language.label}. Tap to change.`}
+            aria-label={`Language: ${language.label}. Tap to change.`}
             aria-expanded={showLanguagePicker}
           >
             <Globe className="h-4 w-4" />
             {language.label}
           </button>
           {showLanguagePicker && (
-            <div className="flex justify-center gap-2 mt-3" role="radiogroup" aria-label="Select language">
+            <div className="flex justify-center gap-2 mt-3 flex-wrap" role="radiogroup" aria-label="Select language">
               {LANGUAGES.map(l => (
                 <button
                   key={l.code}
@@ -225,8 +219,13 @@ const Index = () => {
               <p className="text-accessible text-muted-foreground mb-4">
                 Identify objects, people, and surroundings with distance estimation
               </p>
-              <Button size="xl" onClick={handleDetectObjects} className="w-full" aria-label="Start object detection">
-                <Eye className="mr-3" /> Detect Objects
+              <Button
+                size="xl"
+                onClick={() => { setAnalysisMode('object'); setCurrentMode('camera'); speak('Opening camera for object detection'); if (navigator.vibrate) navigator.vibrate(50); }}
+                className="w-full"
+                aria-label="Start object detection"
+              >
+                <Eye className="mr-3" />Detect Objects
               </Button>
             </CardContent>
           </Card>
@@ -242,8 +241,14 @@ const Index = () => {
               <p className="text-accessible text-muted-foreground mb-4">
                 Read signs, labels, documents, and any visible text
               </p>
-              <Button size="xl" variant="secondary" onClick={handleReadText} className="w-full" aria-label="Start text recognition">
-                <FileText className="mr-3" /> Read Text
+              <Button
+                size="xl"
+                variant="secondary"
+                onClick={() => { setAnalysisMode('text'); setCurrentMode('camera'); speak('Opening camera for text recognition'); if (navigator.vibrate) navigator.vibrate(50); }}
+                className="w-full"
+                aria-label="Start text recognition"
+              >
+                <FileText className="mr-3" />Read Text
               </Button>
             </CardContent>
           </Card>
@@ -259,23 +264,26 @@ const Index = () => {
               <p className="text-accessible text-muted-foreground mb-4">
                 Sound alarm and connect to emergency services
               </p>
-              <Button size="xl" variant="destructive" onClick={handleEmergencyHelp} className="w-full" aria-label="Activate emergency help">
-                <AlertTriangle className="mr-3" /> Emergency Help
+              <Button
+                size="xl"
+                variant="destructive"
+                onClick={() => { setCurrentMode('emergency'); speak('Emergency help activated'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }}
+                className="w-full"
+                aria-label="Activate emergency help"
+              >
+                <AlertTriangle className="mr-3" />Emergency Help
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        {/* Footer actions */}
-        <div className="flex justify-center">
-          <Button
-            variant="ghost"
-            onClick={() => setCurrentMode('history')}
-            aria-label="View analysis history"
-            className="flex items-center gap-2 text-muted-foreground"
-          >
-            <Clock className="h-4 w-4" />
-            View History
+        {/* Footer */}
+        <div className="flex justify-center gap-4">
+          <Button variant="ghost" onClick={() => setCurrentMode('history')} aria-label="View history" className="text-muted-foreground gap-2">
+            <Clock className="h-4 w-4" />History
+          </Button>
+          <Button variant="ghost" onClick={() => setCurrentMode('settings')} aria-label="Open settings" className="text-muted-foreground gap-2">
+            <Settings className="h-4 w-4" />Settings
           </Button>
         </div>
 
