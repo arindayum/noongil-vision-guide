@@ -1,123 +1,152 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 
 interface VoiceCommandOptions {
-    onDescribe: () => void;
-    onRead: () => void;
-    onEmergency: () => void;
-    onStop: () => void;
+  onDescribe: () => void;
+  onRead: () => void;
+  onEmergency: () => void;
+  onStop: () => void;
 }
 
-export const useVoiceCommands = (options: VoiceCommandOptions, enabled: boolean = true) => {
-    const [isListening, setIsListening] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const optionsRef = useRef(options);
-    const recognitionRef = useRef<any>(null);
+export const useVoiceCommands = (
+  options: VoiceCommandOptions,
+  enabled: boolean = true,
+  lang: string = 'en-US',
+) => {
+  const [isListening, setIsListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const optionsRef = useRef(options);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // useRef for error so onend closure always sees the current value
+  const errorRef = useRef<string | null>(null);
 
-    // Check for Secure Context (required for Mic/Camera)
-    useEffect(() => {
-        if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-            setError("App must be served over HTTPS for voice and camera to work.");
-        }
-    }, []);
+  useEffect(() => {
+    optionsRef.current = options;
+  }, [options]);
 
-    const stopRecognition = useCallback(() => {
-        if (recognitionRef.current) {
-            recognitionRef.current.onend = null;
-            recognitionRef.current.onerror = null;
-            try {
-                recognitionRef.current.stop();
-            } catch (e) {
-                console.warn('Error stopping recognition:', e);
-            }
-            recognitionRef.current = null;
-            setIsListening(false);
-        }
-    }, []);
+  useEffect(() => {
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+      const msg = 'App must be served over HTTPS for voice and camera to work.';
+      setError(msg);
+      errorRef.current = msg;
+    }
+  }, []);
 
-    const startListening = useCallback(() => {
-        if (!enabled || !window.isSecureContext && window.location.hostname !== 'localhost') return;
+  const stopRecognition = useCallback(() => {
+    if (recognitionRef.current) {
+      recognitionRef.current.onend = null;
+      recognitionRef.current.onerror = null;
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // Already stopped
+      }
+      recognitionRef.current = null;
+      setIsListening(false);
+    }
+  }, []);
 
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            setError("Speech recognition not supported in this browser.");
-            return;
-        }
+  const startListening = useCallback(() => {
+    // Explicit parentheses for clarity
+    if (!enabled || (!window.isSecureContext && window.location.hostname !== 'localhost')) return;
 
-        stopRecognition();
+    const SpeechRecognition =
+      window.SpeechRecognition ?? (window as any).webkitSpeechRecognition;
 
-        const recognition = new SpeechRecognition();
-        recognitionRef.current = recognition;
+    if (!SpeechRecognition) {
+      const msg = 'Speech recognition not supported in this browser.';
+      setError(msg);
+      errorRef.current = msg;
+      return;
+    }
 
-        recognition.continuous = true;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
+    stopRecognition();
 
-        recognition.onstart = () => {
-            setIsListening(true);
-            setError(null);
-            console.log('Speech recognition active');
-        };
+    const recognition: SpeechRecognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
 
-        recognition.onresult = (event: any) => {
-            const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
-            console.log('Voice command heard:', transcript);
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = lang;
 
-            if (transcript.includes('describe') || transcript.includes('scene') || transcript.includes('look')) {
-                optionsRef.current.onDescribe();
-            } else if (transcript.includes('read') || transcript.includes('text')) {
-                optionsRef.current.onRead();
-            } else if (transcript.includes('emergency') || transcript.includes('911') || transcript.includes('help')) {
-                optionsRef.current.onEmergency();
-            } else if (transcript.includes('stop') || transcript.includes('cancel')) {
-                optionsRef.current.onStop();
-            }
-        };
+    recognition.onstart = () => {
+      setIsListening(true);
+      setError(null);
+      errorRef.current = null;
+      if (import.meta.env.DEV) console.log('Speech recognition active, lang:', lang);
+    };
 
-        recognition.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-            if (event.error === 'not-allowed') {
-                setError("Microphone permission denied.");
-            } else if (event.error === 'network') {
-                setError("Network error: Voice control requires an active internet connection.");
-            } else if (event.error === 'aborted') {
-                // Aborted often means it was stopped by code or timed out
-                console.log('Recognition aborted.');
-            } else {
-                setError(`Voice error: ${event.error}`);
-            }
-            setIsListening(false);
-        };
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[event.results.length - 1][0].transcript
+        .toLowerCase()
+        .trim();
 
-        recognition.onend = () => {
-            setIsListening(false);
-            // Auto-restart if still enabled (and not manually stopped)
-            if (enabled && !error) {
-                setTimeout(() => {
-                    if (enabled) startListening();
-                }, 1000);
-            }
-        };
+      if (import.meta.env.DEV) console.log('Voice command heard:', transcript);
 
-        try {
-            recognition.start();
-        } catch (e) {
-            console.error('Recognition start failed:', e);
-            setError("Could not start voice control.");
-        }
-    }, [enabled, stopRecognition]);
+      if (transcript.includes('describe') || transcript.includes('scene') || transcript.includes('look')) {
+        optionsRef.current.onDescribe();
+      } else if (transcript.includes('read') || transcript.includes('text')) {
+        optionsRef.current.onRead();
+      } else if (
+        transcript.includes('emergency') ||
+        transcript.includes('911') ||
+        transcript.includes('help') ||
+        transcript.includes('मदद') || // Hindi: help
+        transcript.includes('मदत')    // Marathi: help
+      ) {
+        optionsRef.current.onEmergency();
+      } else if (transcript.includes('stop') || transcript.includes('cancel') || transcript.includes('रुको')) {
+        optionsRef.current.onStop();
+      }
+    };
 
-    useEffect(() => {
-        optionsRef.current = options;
-    }, [options]);
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      if (import.meta.env.DEV) console.error('Speech recognition error:', event.error);
 
-    useEffect(() => {
-        if (enabled) {
-            startListening();
-        } else {
-            stopRecognition();
-        }
-        return () => stopRecognition();
-    }, [enabled, startListening, stopRecognition]);
+      if (event.error === 'not-allowed') {
+        const msg = 'Microphone permission denied.';
+        setError(msg);
+        errorRef.current = msg;
+      } else if (event.error === 'network') {
+        const msg = 'Network error: Voice control requires internet connection.';
+        setError(msg);
+        errorRef.current = msg;
+      } else if (event.error === 'aborted') {
+        // Expected when stopped by code — not an error
+      } else {
+        const msg = `Voice error: ${event.error}`;
+        setError(msg);
+        errorRef.current = msg;
+      }
+      setIsListening(false);
+    };
 
-    return { isListening, error };
+    recognition.onend = () => {
+      setIsListening(false);
+      // Use errorRef (not state) to avoid stale closure
+      if (enabled && !errorRef.current) {
+        setTimeout(() => {
+          if (enabled) startListening();
+        }, 1000);
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      const msg = 'Could not start voice control.';
+      setError(msg);
+      errorRef.current = msg;
+    }
+  }, [enabled, lang, stopRecognition]);
+
+  useEffect(() => {
+    if (enabled) {
+      startListening();
+    } else {
+      stopRecognition();
+    }
+    return () => stopRecognition();
+  }, [enabled, startListening, stopRecognition]);
+
+  return { isListening, error };
 };
