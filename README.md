@@ -276,4 +276,5 @@ When there is no internet connection:
 
 ## License
 
-MIT
+This project was developed as a final year engineering project.
+All rights reserved © 2025 
