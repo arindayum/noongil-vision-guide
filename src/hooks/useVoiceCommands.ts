@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { isSpeaking as checkGlobalSpeaking } from '@/utils/speech';
 
 interface VoiceCommandOptions {
   onDescribe: () => void;
@@ -82,19 +83,52 @@ export const useVoiceCommands = (
 
       if (import.meta.env.DEV) console.log('Voice command heard:', transcript);
 
-      if (transcript.includes('describe') || transcript.includes('scene') || transcript.includes('look')) {
-        optionsRef.current.onDescribe();
-      } else if (transcript.includes('read') || transcript.includes('text')) {
-        optionsRef.current.onRead();
-      } else if (
+      if (checkGlobalSpeaking()) {
+        if (import.meta.env.DEV) console.log('Ignoring command because app is speaking');
+        return;
+      }
+
+      // Hindi and Marathi expanded keywords
+      const isDescribe =
+        transcript.includes('describe') ||
+        transcript.includes('scene') ||
+        transcript.includes('look') ||
+        transcript.includes('क्या है') || // Hindi: what is
+        transcript.includes('दिखाओ') ||   // Hindi: show
+        transcript.includes('काय आहे') || // Marathi: what is
+        transcript.includes('दाखवा');    // Marathi: show
+
+      const isRead =
+        transcript.includes('read') ||
+        transcript.includes('text') ||
+        transcript.includes('पढ़ो') ||   // Hindi: read
+        transcript.includes('लिखा') ||   // Hindi: written
+        transcript.includes('वाच') ||    // Marathi: read
+        transcript.includes('लिहिलेला'); // Marathi: written
+
+      const isEmergency =
         transcript.includes('emergency') ||
         transcript.includes('911') ||
         transcript.includes('help') ||
-        transcript.includes('मदद') || // Hindi: help
-        transcript.includes('मदत')    // Marathi: help
-      ) {
+        transcript.includes('मदद') ||    // Hindi: help
+        transcript.includes('बचाओ') ||   // Hindi: save
+        transcript.includes('मदत') ||    // Marathi: help
+        transcript.includes('वाचवा');    // Marathi: save
+
+      const isStop =
+        transcript.includes('stop') ||
+        transcript.includes('cancel') ||
+        transcript.includes('रुको') ||   // Hindi: stop
+        transcript.includes('बंद') ||   // Hindi/Marathi: close/stop
+        transcript.includes('थांबा');    // Marathi: stop
+
+      if (isDescribe) {
+        optionsRef.current.onDescribe();
+      } else if (isRead) {
+        optionsRef.current.onRead();
+      } else if (isEmergency) {
         optionsRef.current.onEmergency();
-      } else if (transcript.includes('stop') || transcript.includes('cancel') || transcript.includes('रुको')) {
+      } else if (isStop) {
         optionsRef.current.onStop();
       }
     };
@@ -140,7 +174,23 @@ export const useVoiceCommands = (
   }, [enabled, lang, stopRecognition]);
 
   useEffect(() => {
-    if (enabled) {
+    const handleSpeechState = (e: any) => {
+      const isAppSpeaking = e.detail.isSpeaking;
+      if (isAppSpeaking) {
+        // Just stop recognition for now, onend will restart it if enabled
+        if (recognitionRef.current) {
+          try { recognitionRef.current.stop(); } catch { }
+        }
+      } else if (enabled) {
+        startListening();
+      }
+    };
+    window.addEventListener('app-speech-state', handleSpeechState);
+    return () => window.removeEventListener('app-speech-state', handleSpeechState);
+  }, [enabled, startListening]);
+
+  useEffect(() => {
+    if (enabled && !checkGlobalSpeaking()) {
       startListening();
     } else {
       stopRecognition();

@@ -1,8 +1,25 @@
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
 import { Capacitor } from '@capacitor/core';
 
+let isAppSpeaking = false;
+
+export const isSpeaking = (): boolean => isAppSpeaking || (typeof window !== 'undefined' && window.speechSynthesis?.speaking);
+
+const setSpeaking = (val: boolean) => {
+  isAppSpeaking = val;
+  // Dispatch a custom event so other hooks can react if needed
+  window.dispatchEvent(new CustomEvent('app-speech-state', { detail: { isSpeaking: val } }));
+};
+
 export const speak = async (text: string, onEnd?: () => void): Promise<void> => {
   if (!text) return;
+
+  setSpeaking(true);
+
+  const wrappedOnEnd = () => {
+    setSpeaking(false);
+    onEnd?.();
+  };
 
   if (import.meta.env.DEV) {
     console.log('Speaking:', text.substring(0, 50));
@@ -18,17 +35,18 @@ export const speak = async (text: string, onEnd?: () => void): Promise<void> => 
         volume: 1.0,
         category: 'ambient',
       });
-      onEnd?.();
+      wrappedOnEnd();
     } catch (error) {
       if (import.meta.env.DEV) console.error('Native TTS Error:', error);
-      webSpeak(text, onEnd);
+      webSpeak(text, wrappedOnEnd);
     }
   } else {
-    webSpeak(text, onEnd);
+    webSpeak(text, wrappedOnEnd);
   }
 };
 
 export const stop = async (): Promise<void> => {
+  setSpeaking(false);
   if (Capacitor.isNativePlatform()) {
     try {
       await TextToSpeech.stop();

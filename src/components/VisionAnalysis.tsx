@@ -68,6 +68,95 @@ Respond ONLY with a JSON object — no markdown, no preamble.
 }
 Rules: if NO hazards visible, warnings = [] and summary = "The path looks clear". Be thorough and specific. ${lang}`.trim();
 
+export const LOCALIZED_STRINGS: Record<string, any> = {
+  en: {
+    high: 'I can clearly see',
+    medium: 'I think I can see',
+    low: "I'm not entirely sure, but",
+    warning: 'Warning',
+    textReads: 'The text reads',
+    offlineNote: 'Note: offline mode used. Results may be less accurate.',
+    // Visual labels
+    back: 'Back',
+    resultsTitle: 'Analysis Results',
+    offlineBasic: 'Offline mode — basic OCR',
+    hazardFound: 'Hazards Found',
+    pathClear: 'Path looks clear — no hazards detected',
+    confidence: 'confidence',
+    detectedObjects: 'Detected Objects',
+    stopReading: 'Stop Reading',
+    readAloud: 'Read Aloud',
+    reAnalyse: 'Re-analyse',
+    noResults: 'No results. Try taking another photo.',
+    tryAgain: 'Try Again',
+    loadingEngine: 'Loading offline engine…',
+    recognisingText: 'Recognising text…',
+    scanningHazards: 'Scanning for hazards…',
+    analysingImage: 'Analysing image…',
+    objectTitle: 'Object Detection',
+    textTitle: 'Text Recognition',
+    hazardTitle: 'Hazard Detection',
+    photoCaptured: 'Photo Captured',
+    analyzingImage: 'Analysing image…'
+  },
+  hi: {
+    high: 'मुझे साफ़ दिख रहा है',
+    medium: 'मुझे लगता है कि',
+    low: 'मैं पूरी तरह से पक्का नहीं हूँ, लेकिन',
+    warning: 'चेतावनी',
+    textReads: 'लिखा हुआ है',
+    offlineNote: 'नोट: ऑफलाइन मोड इस्तेमाल किया गया है।',
+    // Visual labels
+    back: 'पीछे',
+    resultsTitle: 'विश्लेषण परिणाम',
+    offlineBasic: 'ऑफलाइन मोड — बुनियादी ओसीआर',
+    hazardFound: 'खतरे मिले',
+    pathClear: 'रास्ता साफ लग रहा है — कोई खतरा नहीं मिला',
+    confidence: 'सटीकता',
+    detectedObjects: 'पहचाने गए सामान',
+    stopReading: 'पढ़ना बंद करें',
+    readAloud: 'ज़ोर से पढ़ें',
+    reAnalyse: 'फिर से विश्लेषण करें',
+    noResults: 'कोई परिणाम नहीं। दूसरी फोटो लेने की कोशिश करें।',
+    tryAgain: 'फिर कोशिश करें',
+    loadingEngine: 'ऑफलाइन इंजन लोड हो रहा है…',
+    recognisingText: 'टेक्स्ट पहचाना जा रहा है…',
+    scanningHazards: 'खतरों की तलाश की जा रही है…',
+    analysingImage: 'छवि का विश्लेषण किया जा रहा है…',
+    objectTitle: 'वस्तु पहचान',
+    textTitle: 'टेक्स्ट पहचान',
+    hazardTitle: 'खतरा पहचान',
+  },
+  mr: {
+    high: 'मला स्पष्ट दिसत आहे',
+    medium: 'मला असे वाटते की',
+    low: 'मला पूर्णपणे खात्री नाही, पण',
+    warning: 'धोका',
+    textReads: 'लिहिलेले आहे',
+    offlineNote: 'टीप: ऑफलाइन मोड वापरला गेला आहे.',
+    // Visual labels
+    back: 'मागे',
+    resultsTitle: 'विश्लेषण निकाल',
+    offlineBasic: 'ऑफलाइन मोड — मूलभूत ओसीआर',
+    hazardFound: 'धोके सापडले',
+    pathClear: 'रस्ता मोकळा वाटतो — कोणताही धोका आढळला नाही',
+    confidence: 'निश्चितता',
+    detectedObjects: 'ओळखल्या गेलेल्या वस्तू',
+    stopReading: 'वाचन थांबवा',
+    readAloud: 'मोठ्याने वाचा',
+    reAnalyse: 'पुन्हा विश्लेषण करा',
+    noResults: 'निकाल नाही. दुसरा फोटो घेण्याचा प्रयत्न करा.',
+    tryAgain: 'पुन्हा प्रयत्न करा',
+    loadingEngine: 'ऑफलाइन इंजिन लोड होत आहे…',
+    recognisingText: 'मजकूर ओळखला जात आहे…',
+    scanningHazards: 'धोक्यांची तपासणी केली जात आहे…',
+    analysingImage: 'प्रतिमेचे विश्लेषण केले जात आहे…',
+    objectTitle: 'वस्तू ओळख',
+    textTitle: 'मजकूर ओळख',
+    hazardTitle: 'धोका ओळख',
+  }
+};
+
 const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
   imageSrc, mode, onBack, onSaveToHistory, onAnalysisComplete,
 }) => {
@@ -80,16 +169,22 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
   const { recognizeText, status: ocrStatus, progress: ocrProgress } = useOfflineOCR();
 
   const buildTTSText = useCallback((r: StructuredResult): string => {
+    const s = LOCALIZED_STRINGS[language.code] || LOCALIZED_STRINGS.en;
     const parts: string[] = [];
-    if (r.warnings.length > 0) parts.push('Warning: ' + r.warnings.join('. '));
-    const prefix = CONFIDENCE_PREFIX[r.confidence] ?? CONFIDENCE_PREFIX.medium;
+
+    if (r.warnings.length > 0) parts.push(`${s.warning}: ` + r.warnings.join('. '));
+
+    const prefix = s[r.confidence] || s.medium;
     parts.push(`${prefix}: ${r.summary}`);
+
     if (mode === 'text' && r.detectedText && r.detectedText !== 'No text detected in this image.') {
-      parts.push('The text reads: ' + r.detectedText);
+      parts.push(`${s.textReads}: ` + r.detectedText);
     }
-    if (r.offline) parts.push('Note: offline mode used. Results may be less accurate.');
+
+    if (r.offline) parts.push(s.offlineNote);
+
     return parts.join('. ');
-  }, [mode]);
+  }, [mode, language.code]);
 
   const speakResult = useCallback((r: StructuredResult) => {
     setIsSpeaking(true);
@@ -139,8 +234,8 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     try {
       const prompt =
         mode === 'object' ? buildObjectPrompt(language.geminiInstruction) :
-        mode === 'text'   ? buildTextPrompt(language.geminiInstruction) :
-                            buildHazardPrompt(language.geminiInstruction);
+          mode === 'text' ? buildTextPrompt(language.geminiInstruction) :
+            buildHazardPrompt(language.geminiInstruction);
 
       const response = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
@@ -148,10 +243,12 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
           body: JSON.stringify({
-            contents: [{ parts: [
-              { text: prompt },
-              { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-            ]}],
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
+              ]
+            }],
             generationConfig: { responseMimeType: 'application/json' },
           }),
         }
@@ -200,27 +297,30 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
 
   useEffect(() => { analyzeImage(); return () => { stop(); }; }, [analyzeImage]);
 
-  const modeConfig = {
-    object: { title: 'Object Detection',  icon: <Eye className="h-6 w-6" /> },
-    text:   { title: 'Text Recognition',  icon: <FileText className="h-6 w-6" /> },
-    hazard: { title: 'Hazard Detection',  icon: <ShieldAlert className="h-6 w-6 text-accent" /> },
-  };
+  const modeConfig = (s: any) => ({
+    object: { title: s.objectTitle, icon: <Eye className="h-6 w-6" /> },
+    text: { title: s.textTitle, icon: <FileText className="h-6 w-6" /> },
+    hazard: { title: s.hazardTitle, icon: <ShieldAlert className="h-6 w-6 text-accent" /> },
+  });
 
   const confidenceColor = { high: 'text-success', medium: 'text-accent', low: 'text-destructive' };
 
-  const loadingLabel = () => {
-    if (ocrStatus === 'loading') return 'Loading offline engine…';
-    if (ocrStatus === 'running') return `Recognising text… ${ocrProgress}%`;
-    if (mode === 'hazard') return 'Scanning for hazards…';
-    return 'Analysing image…';
+  const loadingLabel = (s: any) => {
+    if (ocrStatus === 'loading') return s.loadingEngine;
+    if (ocrStatus === 'running') return `${s.recognisingText} ${ocrProgress}%`;
+    if (mode === 'hazard') return s.scanningHazards;
+    return s.analysingImage;
   };
+
+  const s = LOCALIZED_STRINGS[language.code] || LOCALIZED_STRINGS.en;
+  const config = modeConfig(s);
 
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={onBack} aria-label="Go back">← Back</Button>
-          <h1 className="text-2xl font-bold">{modeConfig[mode].title}</h1>
+          <Button variant="outline" onClick={onBack} aria-label={s.back}>← {s.back}</Button>
+          <h1 className="text-2xl font-bold">{config[mode].title}</h1>
           <div className="w-20" />
         </div>
 
@@ -232,13 +332,13 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">{modeConfig[mode].icon} Analysis Results</CardTitle>
+            <CardTitle className="flex items-center gap-3">{config[mode].icon} {s.resultsTitle}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading ? (
-              <div className="text-center py-8" role="status" aria-label={loadingLabel()}>
+              <div className="text-center py-8" role="status" aria-label={loadingLabel(s)}>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-                <p className="text-accessible text-muted-foreground" aria-live="polite">{loadingLabel()}</p>
+                <p className="text-accessible text-muted-foreground" aria-live="polite">{loadingLabel(s)}</p>
                 {ocrStatus === 'running' && (
                   <div className="mt-3 mx-auto w-48 bg-muted rounded-full h-2">
                     <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${ocrProgress}%` }} />
@@ -249,7 +349,7 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
               <div className="space-y-4">
                 {result.offline && (
                   <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2 text-sm text-muted-foreground">
-                    <WifiOff className="h-4 w-4 shrink-0" />Offline mode — basic OCR
+                    <WifiOff className="h-4 w-4 shrink-0" />{s.offlineBasic}
                   </div>
                 )}
 
@@ -257,7 +357,7 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                   <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle className="h-5 w-5 text-destructive" />
-                      <span className="font-bold text-destructive">{mode === 'hazard' ? 'Hazards Found' : 'Hazard Detected'}</span>
+                      <span className="font-bold text-destructive">{s.hazardFound}</span>
                     </div>
                     <ul className="space-y-1">
                       {result.warnings.map((w, i) => <li key={i} className="text-accessible text-destructive font-medium">• {w}</li>)}
@@ -268,26 +368,26 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                 {mode === 'hazard' && result.warnings.length === 0 && (
                   <div className="bg-success/10 border border-success/30 rounded-lg p-4 flex items-center gap-3">
                     <ShieldAlert className="h-6 w-6 text-success shrink-0" />
-                    <p className="font-bold text-success">Path looks clear — no hazards detected</p>
+                    <p className="font-bold text-success">{s.pathClear}</p>
                   </div>
                 )}
 
                 <div className="bg-muted p-4 rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wider">
-                    {CONFIDENCE_PREFIX[result.confidence]}:
+                    {s[result.confidence] || result.confidence}:
                   </p>
                   <p className="text-accessible font-medium">{result.summary}</p>
                   <div className="flex items-center gap-1 mt-2">
                     <Info className="h-3 w-3 text-muted-foreground" />
                     <span className={`text-sm font-medium ${confidenceColor[result.confidence]}`}>
-                      {result.confidence.charAt(0).toUpperCase() + result.confidence.slice(1)} confidence
+                      {result.confidence.charAt(0).toUpperCase() + result.confidence.slice(1)} {s.confidence}
                     </span>
                   </div>
                 </div>
 
                 {mode === 'object' && result.objects.length > 0 && (
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Detected Objects</p>
+                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">{s.detectedObjects}</p>
                     <div className="grid gap-2">
                       {result.objects.map((obj, i) => (
                         <div key={i} className="flex items-center justify-between bg-secondary/50 rounded-lg px-4 py-2">
@@ -304,18 +404,18 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                 )}
 
                 <div className="flex gap-3">
-                  <Button size="lg" variant={isSpeaking ? 'destructive' : 'accent'} onClick={() => { if (isSpeaking) { stop(); setIsSpeaking(false); } else if (result) speakResult(result); }} className="flex-1" aria-label={isSpeaking ? 'Stop reading' : 'Read aloud'}>
-                    {isSpeaking ? <><VolumeX className="mr-2 h-5 w-5" />Stop Reading</> : <><Volume2 className="mr-2 h-5 w-5" />Read Aloud</>}
+                  <Button size="lg" variant={isSpeaking ? 'destructive' : 'accent'} onClick={() => { if (isSpeaking) { stop(); setIsSpeaking(false); } else if (result) speakResult(result); }} className="flex-1" aria-label={isSpeaking ? s.stopReading : s.readAloud}>
+                    {isSpeaking ? <><VolumeX className="mr-2 h-5 w-5" />{s.stopReading}</> : <><Volume2 className="mr-2 h-5 w-5" />{s.readAloud}</>}
                   </Button>
-                  <Button size="lg" variant="outline" onClick={analyzeImage} disabled={isLoading} aria-label="Re-analyse">
-                    <RotateCcw className="mr-2 h-5 w-5" />Re-analyse
+                  <Button size="lg" variant="outline" onClick={analyzeImage} disabled={isLoading} aria-label={s.reAnalyse}>
+                    <RotateCcw className="mr-2 h-5 w-5" />{s.reAnalyse}
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-accessible text-muted-foreground">No results. Try taking another photo.</p>
-                <Button size="lg" variant="outline" onClick={analyzeImage} className="mt-4"><RotateCcw className="mr-2" />Try Again</Button>
+                <p className="text-accessible text-muted-foreground">{s.noResults}</p>
+                <Button size="lg" variant="outline" onClick={analyzeImage} className="mt-4"><RotateCcw className="mr-2" />{s.tryAgain}</Button>
               </div>
             )}
           </CardContent>

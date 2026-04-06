@@ -5,9 +5,62 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { speak } from '@/utils/speech';
 import { useEmergencyContacts } from '@/hooks/useEmergencyContacts';
 
+import { useLanguage } from '@/contexts/LanguageContext';
+
 interface EmergencyHelpProps {
   onClose: () => void;
 }
+
+const EMERGENCY_STRINGS: Record<string, any> = {
+  en: {
+    title: 'Emergency Help',
+    alertActive: 'EMERGENCY ALERT ACTIVE',
+    stopAlert: 'Stop Alert',
+    soundAlert: 'Sound Alert',
+    soundAlertDesc: 'Plays a loud alternating alarm and vibrates to attract attention',
+    activateAlert: 'Activate Sound Alert',
+    call: 'Call',
+    features: 'Emergency Features',
+    f1: '• Sound Alert: Plays alternating alarm tones and vibrates',
+    f2: '• Emergency Calls: Connects to your saved contacts',
+    f3: '• Voice Announcement: Speaks emergency message aloud',
+    f4: '• Contacts can be customised in Settings',
+    speech: 'Emergency alert activated. This is a request for assistance. Please help if you can hear this message.',
+    close: 'Close emergency help'
+  },
+  hi: {
+    title: 'आपातकालीन सहायता',
+    alertActive: 'आपातकालीन अलर्ट सक्रिय',
+    stopAlert: 'अलर्ट बंद करें',
+    soundAlert: 'आवाज अलर्ट',
+    soundAlertDesc: 'ध्यान आकर्षित करने के लिए तेज़ आवाज़ और कंपन करता है',
+    activateAlert: 'आवाज अलर्ट शुरू करें',
+    call: 'कॉल करें',
+    features: 'आपातकालीन विशेषताएं',
+    f1: '• ध्वनि अलर्ट: तेज़ आवाज़ और कंपन',
+    f2: '• आपातकालीन कॉल: संपर्कों से जुड़ें',
+    f3: '• आवाज घोषणा: संदेश जोर से बोलें',
+    f4: '• संपर्क सेटिंग्स में बदलें',
+    speech: 'आपातकालीन अलर्ट सक्रिय कर दिया गया है। यह सहायता के लिए अनुरोध है। कृपया मदद करें यदि आप यह संदेश सुन सकते हैं।',
+    close: 'आपातकालीन सहायता बंद करें'
+  },
+  mr: {
+    title: 'आणीबाणी मदत',
+    alertActive: 'आणीबाणी अलर्ट सक्रिय',
+    stopAlert: 'अलर्ट थांबवा',
+    soundAlert: 'आवाज अलर्ट',
+    soundAlertDesc: 'लक्ष वेधण्यासाठी जोरात आवाज आणि कंपने होतात',
+    activateAlert: 'आवाज अलर्ट सुरू करा',
+    call: 'कॉल करा',
+    features: 'आणीबाणी वैशिष्ट्ये',
+    f1: '• ध्वनी अलर्ट: जोरात आवाज आणि कंपने',
+    f2: '• आणीबाणी कॉल: संपर्कांशी जोडा',
+    f3: '• आवाज घोषणा: संदेश जोरात वाचला जातो',
+    f4: '• संपर्क सेटिंग्जमध्ये बदला',
+    speech: 'आणीबाणीचा अलर्ट सुरू झाला आहे. ही मदतीची विनंती आहे. जर तुम्ही हा संदेश ऐकू शकत असाल तर कृपया मदत करा.',
+    close: 'आणीबाणी मदत बंद करा'
+  }
+};
 
 const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
 
@@ -34,6 +87,8 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const alertStatusRef = useRef<HTMLDivElement>(null);
   const { contacts } = useEmergencyContacts();
+  const { language } = useLanguage();
+  const s = EMERGENCY_STRINGS[language.code] || EMERGENCY_STRINGS.en;
 
   const startEmergencyAlert = useCallback(async () => {
     shouldStopRef.current = false;
@@ -57,9 +112,9 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
     }
 
     if (!shouldStopRef.current) {
-      speak('Emergency alert activated. This is a request for assistance. Please help if you can hear this message.');
+      speak(s.speech);
     }
-  }, []);
+  }, [s.speech]);
 
   const stopAlert = useCallback(() => {
     shouldStopRef.current = true;
@@ -77,8 +132,8 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
       <div className="min-h-screen p-4">
         <div className="max-w-lg mx-auto space-y-6">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold text-destructive">Emergency Help</h1>
-            <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close emergency help">
+            <h1 className="text-2xl font-bold text-destructive">{s.title}</h1>
+            <Button variant="ghost" size="icon" onClick={onClose} aria-label={s.close}>
               <X className="h-6 w-6" />
             </Button>
           </div>
@@ -89,9 +144,9 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
               <Card className="border-destructive bg-destructive/10">
                 <CardContent className="p-6 text-center">
                   <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4 animate-pulse" />
-                  <p className="text-xl font-bold text-destructive mb-4">EMERGENCY ALERT ACTIVE</p>
+                  <p className="text-xl font-bold text-destructive mb-4">{s.alertActive}</p>
                   <Button size="xl" variant="destructive" onClick={stopAlert} className="w-full">
-                    Stop Alert
+                    {s.stopAlert}
                   </Button>
                 </CardContent>
               </Card>
@@ -103,16 +158,16 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
                 <AlertTriangle className="h-6 w-6 text-accent" />
-                Sound Alert
+                {s.soundAlert}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
-                Plays a loud alternating alarm and vibrates to attract attention
+                {s.soundAlertDesc}
               </p>
-              <Button size="xl" variant="accent" onClick={startEmergencyAlert} disabled={isAlertActive} className="w-full">
+              <Button size="xl" variant="accent" onClick={startEmergencyAlert} disabled={isAlertActive} className="w-full" aria-label={s.activateAlert}>
                 <Volume2 className="mr-3" />
-                Activate Sound Alert
+                {s.activateAlert}
               </Button>
             </CardContent>
           </Card>
@@ -135,10 +190,10 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
                   variant="destructive"
                   onClick={() => { window.location.href = `tel:${contact.number}`; }}
                   className="w-full"
-                  aria-label={`Call ${contact.name} at ${contact.number}`}
+                  aria-label={`${s.call} ${contact.name}`}
                 >
                   <Phone className="mr-3" />
-                  Call {contact.name}
+                  {s.call} {contact.name}
                 </Button>
               </CardContent>
             </Card>
@@ -146,12 +201,12 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
 
           <Card className="bg-muted">
             <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3">Emergency Features</h3>
+              <h3 className="font-bold text-lg mb-3">{s.features}</h3>
               <ul className="space-y-2 text-accessible">
-                <li>• Sound Alert: Plays alternating alarm tones and vibrates</li>
-                <li>• Emergency Calls: Connects to your saved contacts</li>
-                <li>• Voice Announcement: Speaks emergency message aloud</li>
-                <li>• Contacts can be customised in Settings</li>
+                <li>{s.f1}</li>
+                <li>{s.f2}</li>
+                <li>{s.f3}</li>
+                <li>{s.f4}</li>
               </ul>
             </CardContent>
           </Card>

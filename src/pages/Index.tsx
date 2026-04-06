@@ -18,6 +18,90 @@ import { speak, stop } from '@/utils/speech';
 
 type AppMode = 'home' | 'camera' | 'analysis' | 'emergency' | 'history' | 'settings';
 
+const UI_STRINGS: Record<string, any> = {
+  en: {
+    detecting: 'Detecting objects. Capturing in 3 seconds. Please hold steady.',
+    reading: 'Reading text. Capturing in 3 seconds. Please hold steady.',
+    emergency: 'Emergency help activated',
+    welcome: 'NoonGil activated. Say "Describe scene" or "Read text" to start.',
+    activated: 'NoonGil activated',
+    openObject: 'Opening camera for object detection',
+    openText: 'Opening camera for text recognition',
+    hazardScan: 'Hazard scan. Capturing in 3 seconds.',
+    photoCaptured: 'Photo Captured',
+    analysing: 'Analysing image…',
+    // UI Labels
+    btnDetect: 'Detect Objects',
+    btnRead: 'Read Text',
+    btnHazard: 'Scan for Hazards',
+    btnEmergency: 'Emergency Help',
+    btnHistory: 'History',
+    btnSettings: 'Settings',
+    descDetect: 'Identify objects, people, and surroundings with distance estimation',
+    descRead: 'Read signs, labels, documents, and any visible text',
+    descHazard: 'Scan your surroundings for safety hazards — stairs, obstacles, wet floors',
+    descEmergency: 'Sound alarm and connect to emergency services',
+    tapToStart: 'TAP ANYWHERE TO START NOONGIL',
+    voiceActive: 'Voice Active',
+    voiceInactive: 'Voice Inactive',
+    aiAssistant: 'AI Vision Assistant'
+  },
+  hi: {
+    detecting: 'वस्तुओं की पहचान की जा रही है। 3 सेकंड में फोटो ली जाएगी। कृपया स्थिर रहें।',
+    reading: 'टेक्स्ट पढ़ा जा रहा है। 3 सेकंड में फोटो ली जाएगी। कृपया स्थिर रहें।',
+    emergency: 'आपातकालीन सहायता सक्रिय कर दी गई है।',
+    welcome: 'नूनगिल सक्रिय हो गया है। शुरू करने के लिए "दृश्य दिखाओ" या "टेक्स्ट पढ़ो" कहें।',
+    activated: 'नूनगिल सक्रिय है।',
+    openObject: 'वस्तु पहचान के लिए कैमरा खोला जा रहा है',
+    openText: 'टेक्स्ट पढ़ने के लिए कैमरा खोला जा रहा है',
+    hazardScan: 'खतरों की जांच। 3 सेकंड में फोटो ली जाएगी।',
+    photoCaptured: 'फोटो ली गई',
+    analysing: 'छवि का विश्लेषण किया जा रहा है…',
+    // UI Labels
+    btnDetect: 'वस्तुएं पहचानें',
+    btnRead: 'टेक्स्ट पढ़ें',
+    btnHazard: 'खतरों की जांच',
+    btnEmergency: 'आपातकालीन सहायता',
+    btnHistory: 'इतिहास',
+    btnSettings: 'सेटिंग्स',
+    descDetect: 'दूरी के अनुमान के साथ वस्तुओं, लोगों और परिवेश की पहचान करें',
+    descRead: 'साइन, लेबल, दस्तावेज़ और कोई भी दिखाई देने वाला टेक्स्ट पढ़ें',
+    descHazard: 'सुरक्षा खतरों के लिए अपने परिवेश को स्कैन करें - सीढ़ियां, बाधाएं, गीला फर्श',
+    descEmergency: 'अलार्म बजाएं और आपातकालीन सेवाओं से जुड़ें',
+    tapToStart: 'शुरू करने के लिए कहीं भी टैप करें',
+    voiceActive: 'आवाज सक्रिय',
+    voiceInactive: 'आवाज निष्क्रिय',
+    aiAssistant: 'एआई विजन असिस्टेंट'
+  },
+  mr: {
+    detecting: 'वस्तू शोधल्या जात आहेत. 3 सेकंदात फोटो घेतला जाईल. कृपया स्थिर रहा.',
+    reading: 'मजकूर वाचला जात आहे. 3 सेकंदात फोटो घेतला जाईल. कृपया स्थिर रहा.',
+    emergency: 'आणीबाणीची मदत सुरू झाली आहे।',
+    welcome: 'नूनगिल कार्यान्वित झाले आहे। सुरू करण्यासाठी "दृश्य दाखवा" किंवा "मजकूर वाच" असे म्हणा।',
+    activated: 'नूनगिल सुरू आहे।',
+    openObject: 'वस्तू ओळखण्यासाठी कॅमेरा उघडला जात आहे',
+    openText: 'मजकूर वाचण्यासाठी कॅमेरा उघडला जात आहे',
+    hazardScan: 'धोक्यांची तपासणी। 3 सेकंदात फोटो घेतला जाईल।',
+    photoCaptured: 'फोटो घेतला',
+    analysing: 'प्रतिमेचे विश्लेषण केले जात आहे…',
+    // UI Labels
+    btnDetect: 'वस्तू ओळखा',
+    btnRead: 'मजकूर वाचा',
+    btnHazard: 'धोक्यांची तपासणी',
+    btnEmergency: 'आणीबाणीची मदत',
+    btnHistory: 'इतिहास',
+    btnSettings: 'सेटिंग्ज',
+    descDetect: 'द्रव्यमानासह वस्तू, लोक आणि परिसराची ओळख करून घ्या',
+    descRead: 'चिन्हे, लेबले, दस्तऐवज आणि कोणताही दृश्य मजकूर वाचा',
+    descHazard: 'सुरक्षा धोक्यांसाठी आपला परिसर स्कॅन करा - पायऱ्या, अडथळे, ओले मजले',
+    descEmergency: 'अलार्म वाजवा आणि आणीबाणी सेवांशी कनेक्ट व्हा',
+    tapToStart: 'सुरू करण्यासाठी कोठेही टॅप करा',
+    voiceActive: 'आवाज सक्रिय',
+    voiceInactive: 'आवाज निष्क्रिय',
+    aiAssistant: 'एआई विजन असिस्टंट'
+  }
+};
+
 const Index = () => {
   const [currentMode, setCurrentMode] = useState<AppMode>('home');
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('object');
@@ -32,26 +116,28 @@ const Index = () => {
   const { data: analyticsData, track, incrementSession } = useAnalytics();
   const { language, setLanguage } = useLanguage();
 
+  const strings = UI_STRINGS[language.code] || UI_STRINGS.en;
+
   const { isListening, error: voiceError } = useVoiceCommands(
     {
       onDescribe: useCallback(() => {
         setAnalysisMode('object');
         setCurrentMode('camera');
         setIsAutoCapturing(true);
-        speak('Detecting objects. Capturing in 3 seconds. Please hold steady.');
-      }, []),
+        speak(strings.detecting);
+      }, [strings.detecting]),
       onRead: useCallback(() => {
         setAnalysisMode('text');
         setCurrentMode('camera');
         setIsAutoCapturing(true);
-        speak('Reading text. Capturing in 3 seconds. Please hold steady.');
-      }, []),
+        speak(strings.reading);
+      }, [strings.reading]),
       onEmergency: useCallback(() => {
         setCurrentMode('emergency');
         track('emergencyActivations');
-        speak('Emergency help activated');
+        speak(strings.emergency);
         if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      }, [track]),
+      }, [track, strings.emergency]),
       onStop: useCallback(() => {
         setCurrentMode('home');
         setCapturedImage(null);
@@ -70,13 +156,13 @@ const Index = () => {
   useEffect(() => {
     if (hasInteracted) {
       incrementSession();
-      speak('NoonGil activated. Say "Describe scene" or "Read text" to start.');
+      speak(strings.welcome);
     }
-  }, [hasInteracted]);
+  }, [hasInteracted, strings.welcome, incrementSession]);
 
   const handleActivate = () => {
     setHasInteracted(true);
-    speak('NoonGil activated');
+    speak(strings.activated);
     if (navigator.vibrate) navigator.vibrate([50, 50]);
     if (!hasCompletedOnboarding()) setShowOnboarding(true);
   };
@@ -108,9 +194,9 @@ const Index = () => {
         <Button
           onClick={handleActivate}
           className="w-full h-64 text-4xl font-bold bg-white text-primary rounded-3xl shadow-2xl transition-transform active:scale-95"
-          aria-label="Tap to activate NoonGil Voice Assistant"
+          aria-label={strings.tapToStart}
         >
-          TAP ANYWHERE TO START NOONGIL
+          {strings.tapToStart}
         </Button>
       </main>
     );
@@ -125,7 +211,7 @@ const Index = () => {
           setCapturedImage(imageSrc);
           setCurrentMode('analysis');
           setIsAutoCapturing(false);
-          toast({ title: 'Photo Captured', description: 'Analysing image…' });
+          toast({ title: strings.photoCaptured, description: strings.analysing });
         }}
         onClose={handleBackToHome}
         isActive={true}
@@ -163,7 +249,7 @@ const Index = () => {
               aria-hidden="true"
             />
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Voice {isListening ? 'Active' : 'Inactive'}
+              {isListening ? strings.voiceActive : strings.voiceInactive}
             </span>
           </div>
           {voiceError && (
@@ -172,7 +258,7 @@ const Index = () => {
             </div>
           )}
           <h1 className="text-3xl font-bold mb-1">NoonGil</h1>
-          <p className="text-muted-foreground">AI Vision Assistant</p>
+          <p className="text-muted-foreground">{strings.aiAssistant}</p>
         </div>
 
         {/* Language selector */}
@@ -193,11 +279,10 @@ const Index = () => {
                   role="radio"
                   aria-checked={language.code === l.code}
                   onClick={() => { setLanguage(l.code as AppLanguage); setShowLanguagePicker(false); }}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    language.code === l.code
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
-                  }`}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${language.code === l.code
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
+                    }`}
                 >
                   {l.label}
                 </button>
@@ -214,15 +299,15 @@ const Index = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <Eye className="h-6 w-6 text-primary" />Detect Objects
+                <Eye className="h-6 w-6 text-primary" />{strings.btnDetect}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
-                Identify objects, people, and surroundings with distance estimation
+                {strings.descDetect}
               </p>
-              <Button size="xl" onClick={() => { setAnalysisMode('object'); setCurrentMode('camera'); speak('Opening camera for object detection'); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label="Start object detection">
-                <Eye className="mr-3" />Detect Objects
+              <Button size="xl" onClick={() => { setAnalysisMode('object'); setCurrentMode('camera'); speak(strings.openObject); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label={strings.btnDetect}>
+                <Eye className="mr-3" />{strings.btnDetect}
               </Button>
             </CardContent>
           </Card>
@@ -230,15 +315,15 @@ const Index = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <FileText className="h-6 w-6 text-primary" />Read Text
+                <FileText className="h-6 w-6 text-primary" />{strings.btnRead}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
-                Read signs, labels, documents, and any visible text
+                {strings.descRead}
               </p>
-              <Button size="xl" variant="secondary" onClick={() => { setAnalysisMode('text'); setCurrentMode('camera'); speak('Opening camera for text recognition'); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label="Start text recognition">
-                <FileText className="mr-3" />Read Text
+              <Button size="xl" variant="secondary" onClick={() => { setAnalysisMode('text'); setCurrentMode('camera'); speak(strings.openText); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label={strings.btnRead}>
+                <FileText className="mr-3" />{strings.btnRead}
               </Button>
             </CardContent>
           </Card>
@@ -247,15 +332,15 @@ const Index = () => {
           <Card className="border-accent/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <ShieldAlert className="h-6 w-6 text-accent" />Hazard Detection
+                <ShieldAlert className="h-6 w-6 text-accent" />{strings.btnHazard}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
-                Scan your surroundings for safety hazards — stairs, obstacles, wet floors
+                {strings.descHazard}
               </p>
-              <Button size="xl" variant="accent" onClick={() => { setAnalysisMode('hazard'); setCurrentMode('camera'); speak('Hazard scan. Capturing in 3 seconds.'); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label="Start hazard detection">
-                <ShieldAlert className="mr-3" />Scan for Hazards
+              <Button size="xl" variant="accent" onClick={() => { setAnalysisMode('hazard'); setCurrentMode('camera'); speak(strings.hazardScan); if (navigator.vibrate) navigator.vibrate(50); }} className="w-full" aria-label={strings.btnHazard}>
+                <ShieldAlert className="mr-3" />{strings.btnHazard}
               </Button>
             </CardContent>
           </Card>
@@ -263,15 +348,15 @@ const Index = () => {
           <Card className="border-destructive/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-3">
-                <AlertTriangle className="h-6 w-6 text-destructive" />Emergency Help
+                <AlertTriangle className="h-6 w-6 text-destructive" />{strings.btnEmergency}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-accessible text-muted-foreground mb-4">
-                Sound alarm and connect to emergency services
+                {strings.descEmergency}
               </p>
-              <Button size="xl" variant="destructive" onClick={() => { setCurrentMode('emergency'); track('emergencyActivations'); speak('Emergency help activated'); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }} className="w-full" aria-label="Activate emergency help">
-                <AlertTriangle className="mr-3" />Emergency Help
+              <Button size="xl" variant="destructive" onClick={() => { setCurrentMode('emergency'); track('emergencyActivations'); speak(strings.emergency); if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }} className="w-full" aria-label={strings.btnEmergency}>
+                <AlertTriangle className="mr-3" />{strings.btnEmergency}
               </Button>
             </CardContent>
           </Card>
@@ -279,11 +364,11 @@ const Index = () => {
 
         {/* Footer */}
         <div className="flex justify-center gap-4 mb-4">
-          <Button variant="ghost" onClick={() => setCurrentMode('history')} aria-label="View history" className="text-muted-foreground gap-2">
-            <Clock className="h-4 w-4" />History
+          <Button variant="ghost" onClick={() => setCurrentMode('history')} aria-label={strings.btnHistory} className="text-muted-foreground gap-2">
+            <Clock className="h-4 w-4" />{strings.btnHistory}
           </Button>
-          <Button variant="ghost" onClick={() => setCurrentMode('settings')} aria-label="Open settings" className="text-muted-foreground gap-2">
-            <Settings className="h-4 w-4" />Settings
+          <Button variant="ghost" onClick={() => setCurrentMode('settings')} aria-label={strings.btnSettings} className="text-muted-foreground gap-2">
+            <Settings className="h-4 w-4" />{strings.btnSettings}
           </Button>
         </div>
 

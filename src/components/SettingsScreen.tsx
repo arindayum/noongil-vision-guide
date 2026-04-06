@@ -11,10 +11,93 @@ interface SettingsScreenProps {
   onClose: () => void;
 }
 
+const SETTINGS_STRINGS: Record<string, any> = {
+  en: {
+    title: 'Settings',
+    language: 'Language',
+    textSize: 'Text Size',
+    speechRate: 'Speech Rate',
+    testSpeech: 'Test Speech',
+    theme: 'Theme',
+    highContrast: 'High Contrast',
+    behaviour: 'Behaviour',
+    autoRead: 'Auto-read results',
+    autoReadDesc: 'Automatically read analysis aloud when done',
+    emergencyContacts: 'Emergency Contacts',
+    addContact: 'Add Contact',
+    saveContact: 'Save Contact',
+    cancel: 'Cancel',
+    reset: 'Reset to Defaults',
+    testSpeechText: 'This is how I will sound with your current settings.',
+    slow: 'Slow',
+    fast: 'Fast',
+    normal: 'Normal',
+    large: 'Large',
+    xlarge: 'X-Large',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System'
+  },
+  hi: {
+    title: 'सेटिंग्स',
+    language: 'भाषा',
+    textSize: 'टेक्स्ट का आकार',
+    speechRate: 'बोलने की गति',
+    testSpeech: 'आवाज जाँचें',
+    theme: 'थीम',
+    highContrast: 'हाई कंट्रास्ट',
+    behaviour: 'व्यवहार',
+    autoRead: 'परिणामों को स्वतः पढ़ें',
+    autoReadDesc: 'विश्लेषण पूरा होने पर स्वतः ही बोलें',
+    emergencyContacts: 'आपातकालीन संपर्क',
+    addContact: 'संपर्क जोड़ें',
+    saveContact: 'संपर्क सहेजें',
+    cancel: 'रद्द करें',
+    reset: 'डिफ़ॉल्ट पर रीसेट करें',
+    testSpeechText: 'आपकी वर्तमान सेटिंग्स के साथ मैं इस तरह आवाज़ करूँगा।',
+    slow: 'धीमा',
+    fast: 'तेज़',
+    normal: 'सामान्य',
+    large: 'बड़ा',
+    xlarge: 'बहुत बड़ा',
+    light: 'लाइट',
+    dark: 'डार्क',
+    system: 'सिस्टम'
+  },
+  mr: {
+    title: 'सेटिंग्ज',
+    language: 'भाषा',
+    textSize: 'मजकूर आकार',
+    speechRate: 'बोलण्याचा वेग',
+    testSpeech: 'आवाज तपासा',
+    theme: 'थीम',
+    highContrast: 'हाय कंट्रास्ट',
+    behaviour: 'वर्तन',
+    autoRead: 'निकाल स्वयंचलितपणे वाचा',
+    autoReadDesc: 'विश्लेषण पूर्ण झाल्यावर स्वयंचलिटपणे वाचा',
+    emergencyContacts: 'आणीबाणी संपर्क',
+    addContact: 'संपर्क जोडा',
+    saveContact: 'संपर्क जतन करा',
+    cancel: 'रद्द करा',
+    reset: 'डिफ़ॉल्टवर रीसेट करा',
+    testSpeechText: 'तुमच्या सध्याच्या सेटिंग्जसह मी असे आवाज करेन.',
+    slow: 'हळू',
+    fast: 'जलद',
+    normal: 'सामान्य',
+    large: 'मोठा',
+    xlarge: 'खूप मोठा',
+    light: 'लाईट',
+    dark: 'डार्क',
+    system: 'सिस्टम'
+  }
+};
+
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
   const { settings, updateSettings, resetSettings } = useSettings();
   const { contacts, addContact, removeContact } = useEmergencyContacts();
   const { language, setLanguage } = useLanguage();
+
+  const s = SETTINGS_STRINGS[language.code] || SETTINGS_STRINGS.en;
 
   // New contact form state
   const [newName, setNewName] = useState('');
@@ -22,7 +105,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
   const [addingContact, setAddingContact] = useState(false);
 
   const testSpeech = () => {
-    speak('This is how I will sound with your current settings.', undefined);
+    speak(s.testSpeechText, undefined);
   };
 
   const handleAddContact = () => {
@@ -35,15 +118,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
   };
 
   const fontSizeOptions: { value: AppSettings['fontSize']; label: string }[] = [
-    { value: 'normal', label: 'Normal' },
-    { value: 'large', label: 'Large' },
-    { value: 'xlarge', label: 'X-Large' },
+    { value: 'normal', label: s.normal },
+    { value: 'large', label: s.large },
+    { value: 'xlarge', label: s.xlarge },
   ];
 
   const themeOptions: { value: AppSettings['theme']; label: string }[] = [
-    { value: 'light', label: 'Light' },
-    { value: 'dark', label: 'Dark' },
-    { value: 'system', label: 'System' },
+    { value: 'light', label: s.light },
+    { value: 'dark', label: s.dark },
+    { value: 'system', label: s.system },
   ];
 
   return (
@@ -51,28 +134,27 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
       <div className="max-w-lg mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">Settings</h1>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close settings">
+          <h1 className="text-2xl font-bold">{s.title}</h1>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label={s.cancel}>
             <X className="h-6 w-6" />
           </Button>
         </div>
 
         {/* Language */}
         <Card>
-          <CardHeader><CardTitle>Language</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{s.language}</CardTitle></CardHeader>
           <CardContent>
-            <div className="flex gap-2 flex-wrap" role="radiogroup" aria-label="Select language">
+            <div className="flex gap-2 flex-wrap" role="radiogroup" aria-label={s.language}>
               {LANGUAGES.map(l => (
                 <button
                   key={l.code}
                   role="radio"
                   aria-checked={language.code === l.code}
                   onClick={() => setLanguage(l.code as AppLanguage)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    language.code === l.code
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
-                  }`}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${language.code === l.code
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
+                    }`}
                 >
                   {l.label}
                 </button>
@@ -83,20 +165,19 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
 
         {/* Text Size */}
         <Card>
-          <CardHeader><CardTitle>Text Size</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{s.textSize}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2" role="radiogroup" aria-label="Select text size">
+            <div className="flex gap-2" role="radiogroup" aria-label={s.textSize}>
               {fontSizeOptions.map(opt => (
                 <button
                   key={opt.value}
                   role="radio"
                   aria-checked={settings.fontSize === opt.value}
                   onClick={() => updateSettings({ fontSize: opt.value })}
-                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
-                    settings.fontSize === opt.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
-                  }`}
+                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${settings.fontSize === opt.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -109,7 +190,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              Speech Rate
+              {s.speechRate}
               <span className="text-sm font-normal text-muted-foreground">
                 {settings.speechRate.toFixed(1)}×
               </span>
@@ -124,34 +205,33 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
               value={settings.speechRate}
               onChange={e => updateSettings({ speechRate: parseFloat(e.target.value) })}
               className="w-full accent-primary"
-              aria-label={`Speech rate: ${settings.speechRate.toFixed(1)} times normal speed`}
+              aria-label={`${s.speechRate}: ${settings.speechRate.toFixed(1)}`}
             />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Slow (0.5×)</span>
-              <span>Fast (2.0×)</span>
+              <span>{s.slow} (0.5×)</span>
+              <span>{s.fast} (2.0×)</span>
             </div>
             <Button variant="outline" onClick={testSpeech} className="w-full">
-              Test Speech
+              {s.testSpeech}
             </Button>
           </CardContent>
         </Card>
 
         {/* Theme */}
         <Card>
-          <CardHeader><CardTitle>Theme</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{s.theme}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex gap-2" role="radiogroup" aria-label="Select theme">
+            <div className="flex gap-2" role="radiogroup" aria-label={s.theme}>
               {themeOptions.map(opt => (
                 <button
                   key={opt.value}
                   role="radio"
                   aria-checked={settings.theme === opt.value}
                   onClick={() => updateSettings({ theme: opt.value })}
-                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${
-                    settings.theme === opt.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
-                  }`}
+                  className={`flex-1 py-3 rounded-xl text-sm font-medium transition-colors ${settings.theme === opt.value
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary-hover'
+                    }`}
                 >
                   {opt.label}
                 </button>
@@ -160,20 +240,18 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
 
             {/* High contrast toggle */}
             <label className="flex items-center justify-between cursor-pointer py-2">
-              <span className="font-medium">High Contrast</span>
+              <span className="font-medium">{s.highContrast}</span>
               <button
                 role="switch"
                 aria-checked={settings.highContrast}
                 onClick={() => updateSettings({ highContrast: !settings.highContrast })}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  settings.highContrast ? 'bg-primary' : 'bg-border'
-                }`}
-                aria-label="Toggle high contrast mode"
+                className={`relative w-12 h-6 rounded-full transition-colors ${settings.highContrast ? 'bg-primary' : 'bg-border'
+                  }`}
+                aria-label={s.highContrast}
               >
                 <span
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    settings.highContrast ? 'translate-x-7' : 'translate-x-1'
-                  }`}
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.highContrast ? 'translate-x-7' : 'translate-x-1'
+                    }`}
                 />
               </button>
             </label>
@@ -182,28 +260,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
 
         {/* Auto-speak toggle */}
         <Card>
-          <CardHeader><CardTitle>Behaviour</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{s.behaviour}</CardTitle></CardHeader>
           <CardContent>
             <label className="flex items-center justify-between cursor-pointer py-2">
               <div>
-                <p className="font-medium">Auto-read results</p>
+                <p className="font-medium">{s.autoRead}</p>
                 <p className="text-sm text-muted-foreground">
-                  Automatically read analysis aloud when done
+                  {s.autoReadDesc}
                 </p>
               </div>
               <button
                 role="switch"
                 aria-checked={settings.autoSpeak}
                 onClick={() => updateSettings({ autoSpeak: !settings.autoSpeak })}
-                className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ml-4 ${
-                  settings.autoSpeak ? 'bg-primary' : 'bg-border'
-                }`}
-                aria-label="Toggle auto-read results"
+                className={`relative w-12 h-6 rounded-full transition-colors shrink-0 ml-4 ${settings.autoSpeak ? 'bg-primary' : 'bg-border'
+                  }`}
+                aria-label={s.autoRead}
               >
                 <span
-                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                    settings.autoSpeak ? 'translate-x-7' : 'translate-x-1'
-                  }`}
+                  className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.autoSpeak ? 'translate-x-7' : 'translate-x-1'
+                    }`}
                 />
               </button>
             </label>
@@ -215,7 +291,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5 text-destructive" />
-              Emergency Contacts
+              {s.emergencyContacts}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -244,11 +320,11 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
               <div className="space-y-3 pt-2">
                 <input
                   type="text"
-                  placeholder="Contact name (e.g. Mum)"
+                  placeholder="Contact name"
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
                   className="w-full bg-background border-2 border-input-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring"
-                  aria-label="Emergency contact name"
+                  aria-label="Name"
                   autoFocus
                 />
                 <input
@@ -257,14 +333,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
                   value={newNumber}
                   onChange={e => setNewNumber(e.target.value)}
                   className="w-full bg-background border-2 border-input-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-ring"
-                  aria-label="Emergency contact phone number"
+                  aria-label="Phone"
                 />
                 <div className="flex gap-2">
                   <Button onClick={handleAddContact} disabled={!newName.trim() || !newNumber.trim()} className="flex-1">
-                    Save Contact
+                    {s.saveContact}
                   </Button>
                   <Button variant="outline" onClick={() => { setAddingContact(false); setNewName(''); setNewNumber(''); }}>
-                    Cancel
+                    {s.cancel}
                   </Button>
                 </div>
               </div>
@@ -273,10 +349,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
                 variant="outline"
                 onClick={() => setAddingContact(true)}
                 className="w-full"
-                aria-label="Add emergency contact"
+                aria-label={s.addContact}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Add Contact
+                {s.addContact}
               </Button>
             )}
           </CardContent>
@@ -289,10 +365,10 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ onClose }) => {
               variant="outline"
               onClick={resetSettings}
               className="w-full text-destructive border-destructive/30 hover:bg-destructive/5"
-              aria-label="Reset all settings to defaults"
+              aria-label={s.reset}
             >
               <RotateCcw className="mr-2 h-4 w-4" />
-              Reset to Defaults
+              {s.reset}
             </Button>
           </CardContent>
         </Card>
