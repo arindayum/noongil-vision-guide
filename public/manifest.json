@@ -1,6 +1,19 @@
-{
-  "name": "NoonGil - Assistive Vision App",
-  "short_name": "NoonGil",
+"icons": [
+  {
+    "src": "/icons/android-chrome-192x192.png",
+    "sizes": "192x192",
+    "type": "image/png",
+    "purpose": "any maskable"
+  },
+  {
+    "src": "/icons/android-chrome-512x512.png",
+    "sizes": "512x512",
+    "type": "image/png",
+    "purpose": "any maskable"
+  }
+]{
+  "name": "DoorDrushti - Assistive Vision App",
+  "short_name": "DoorDrushti",
   "description": "AI vision app for object detection and text recognition for visually impaired users",
   "start_url": "/",
   "display": "standalone",
