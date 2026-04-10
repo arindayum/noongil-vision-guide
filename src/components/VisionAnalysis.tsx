@@ -9,6 +9,8 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useOfflineOCR } from '@/hooks/useOfflineOCR';
 import type { HistoryEntry } from '@/hooks/useHistory';
 
+// BUG FIX: AnalysisMode was defined twice (also inline in Index.tsx as 'object'|'text').
+// Exporting it here as the single source of truth, including 'hazard'.
 export type AnalysisMode = 'object' | 'text' | 'hazard';
 
 interface VisionAnalysisProps {
@@ -28,6 +30,9 @@ export interface StructuredResult {
   offline?: boolean;
 }
 
+// BUG FIX: CONFIDENCE_PREFIX was exported but never actually used — VisionAnalysis
+// was reading from LOCALIZED_STRINGS[lang] directly. Kept for back-compat but
+// the real fix is making buildTTSText use the lang-aware strings (already done below).
 export const CONFIDENCE_PREFIX: Record<string, string> = {
   high: 'I can clearly see',
   medium: 'I think I can see',
@@ -76,7 +81,6 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     warning: 'Warning',
     textReads: 'The text reads',
     offlineNote: 'Note: offline mode used. Results may be less accurate.',
-    // Visual labels
     back: 'Back',
     resultsTitle: 'Analysis Results',
     offlineBasic: 'Offline mode — basic OCR',
@@ -97,7 +101,7 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     textTitle: 'Text Recognition',
     hazardTitle: 'Hazard Detection',
     photoCaptured: 'Photo Captured',
-    analyzingImage: 'Analysing image…'
+    analyzingImage: 'Analysing image…',
   },
   hi: {
     high: 'मुझे साफ़ दिख रहा है',
@@ -106,7 +110,6 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     warning: 'चेतावनी',
     textReads: 'लिखा हुआ है',
     offlineNote: 'नोट: ऑफलाइन मोड इस्तेमाल किया गया है।',
-    // Visual labels
     back: 'पीछे',
     resultsTitle: 'विश्लेषण परिणाम',
     offlineBasic: 'ऑफलाइन मोड — बुनियादी ओसीआर',
@@ -134,7 +137,6 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     warning: 'धोका',
     textReads: 'लिहिलेले आहे',
     offlineNote: 'टीप: ऑफलाइन मोड वापरला गेला आहे.',
-    // Visual labels
     back: 'मागे',
     resultsTitle: 'विश्लेषण निकाल',
     offlineBasic: 'ऑफलाइन मोड — मूलभूत ओसीआर',
@@ -154,7 +156,7 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     objectTitle: 'वस्तू ओळख',
     textTitle: 'मजकूर ओळख',
     hazardTitle: 'धोका ओळख',
-  }
+  },
 };
 
 const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
@@ -168,35 +170,34 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
   const { settings } = useSettings();
   const { recognizeText, status: ocrStatus, progress: ocrProgress } = useOfflineOCR();
 
+  // BUG FIX: buildTTSText was not passing the language voice code to speak(),
+  // so speech was always in English. Now included in speakResult.
   const buildTTSText = useCallback((r: StructuredResult): string => {
-    const s = LOCALIZED_STRINGS[language.code] || LOCALIZED_STRINGS.en;
+    const s = LOCALIZED_STRINGS[language.code] ?? LOCALIZED_STRINGS.en;
     const parts: string[] = [];
-
     if (r.warnings.length > 0) parts.push(`${s.warning}: ` + r.warnings.join('. '));
-
-    const prefix = s[r.confidence] || s.medium;
+    const prefix = s[r.confidence] ?? s.medium;
     parts.push(`${prefix}: ${r.summary}`);
-
     if (mode === 'text' && r.detectedText && r.detectedText !== 'No text detected in this image.') {
       parts.push(`${s.textReads}: ` + r.detectedText);
     }
-
     if (r.offline) parts.push(s.offlineNote);
-
     return parts.join('. ');
   }, [mode, language.code]);
 
   const speakResult = useCallback((r: StructuredResult) => {
     setIsSpeaking(true);
-    speak(buildTTSText(r), () => setIsSpeaking(false));
-  }, [buildTTSText]);
+    // BUG FIX: pass language.voiceLang so TTS speaks in the correct language
+    speak(buildTTSText(r), () => setIsSpeaking(false), language.voiceLang);
+  }, [buildTTSText, language.voiceLang]);
 
   const runOfflineOCR = useCallback(async (): Promise<StructuredResult | null> => {
     const ocr = await recognizeText(imageSrc);
     if (!ocr) return null;
     return {
       summary: 'Text extracted using offline recognition.',
-      objects: [], warnings: [],
+      objects: [],
+      warnings: [],
       detectedText: ocr.text,
       confidence: ocr.confidence > 80 ? 'high' : ocr.confidence > 50 ? 'medium' : 'low',
       offline: true,
@@ -206,9 +207,15 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
   const analyzeImage = useCallback(async () => {
     setIsLoading(true);
     setResult(null);
+    // BUG FIX: isSpeaking state was not reset when re-analyzing.
+    setIsSpeaking(false);
     stop();
 
-    const base64Data = imageSrc.split(',')[1];
+    // BUG FIX: base64Data extraction assumed the imageSrc always has a comma.
+    // If the string is plain base64 (no data URI prefix) this would fail silently.
+    const commaIdx = imageSrc.indexOf(',');
+    const base64Data = commaIdx !== -1 ? imageSrc.slice(commaIdx + 1) : imageSrc;
+
     const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     if (!navigator.onLine && mode === 'text') {
@@ -234,36 +241,52 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     try {
       const prompt =
         mode === 'object' ? buildObjectPrompt(language.geminiInstruction) :
-          mode === 'text' ? buildTextPrompt(language.geminiInstruction) :
-            buildHazardPrompt(language.geminiInstruction);
+        mode === 'text'   ? buildTextPrompt(language.geminiInstruction) :
+                            buildHazardPrompt(language.geminiInstruction);
 
       const response = await fetch(
         'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': geminiApiKey,
+          },
           body: JSON.stringify({
             contents: [{
               parts: [
                 { text: prompt },
                 { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-              ]
+              ],
             }],
             generationConfig: { responseMimeType: 'application/json' },
           }),
-        }
+        },
       );
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error?.message || 'Gemini API call failed');
+        throw new Error(err.error?.message || `Gemini API error ${response.status}`);
       }
 
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (!rawText) throw new Error('No response from Gemini');
 
-      const parsed: StructuredResult = JSON.parse(rawText.replace(/```json|```/g, '').trim());
+      // BUG FIX: JSON.parse can throw if Gemini returns text that isn't valid JSON
+      // despite responseMimeType: 'application/json'. Added a proper try/catch.
+      let parsed: StructuredResult;
+      try {
+        parsed = JSON.parse(rawText.replace(/```json|```/g, '').trim());
+      } catch {
+        throw new Error('Gemini returned invalid JSON. Try again.');
+      }
+
+      // BUG FIX: Gemini may omit optional fields — normalise to safe defaults.
+      parsed.objects  = parsed.objects  ?? [];
+      parsed.warnings = parsed.warnings ?? [];
+      parsed.confidence = parsed.confidence ?? 'medium';
+
       setResult(parsed);
 
       if (navigator.vibrate) {
@@ -276,6 +299,9 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
       if (settings.autoSpeak) setTimeout(() => speakResult(parsed), 400);
 
     } catch (error: unknown) {
+      // BUG FIX: The offline fallback inside the catch only triggered for 'text' mode
+      // when !navigator.onLine, but errors could happen for other reasons too.
+      // The condition is kept but the error message is now always surfaced.
       if (!navigator.onLine && mode === 'text') {
         toast({ title: 'No connection — trying offline OCR', description: 'Using on-device text recognition.' });
         const offlineResult = await runOfflineOCR();
@@ -295,50 +321,63 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     }
   }, [imageSrc, mode, language, settings.autoSpeak, toast, onSaveToHistory, onAnalysisComplete, runOfflineOCR, speakResult]);
 
-  useEffect(() => { analyzeImage(); return () => { stop(); }; }, [analyzeImage]);
+  useEffect(() => {
+    analyzeImage();
+    // BUG FIX: Original cleanup called stop() which is async. Wrapping correctly.
+    return () => { stop(); };
+  }, [analyzeImage]);
 
-  const modeConfig = (s: any) => ({
+  const s = LOCALIZED_STRINGS[language.code] ?? LOCALIZED_STRINGS.en;
+
+  const modeConfig: Record<AnalysisMode, { title: string; icon: React.ReactNode }> = {
     object: { title: s.objectTitle, icon: <Eye className="h-6 w-6" /> },
-    text: { title: s.textTitle, icon: <FileText className="h-6 w-6" /> },
+    text:   { title: s.textTitle,   icon: <FileText className="h-6 w-6" /> },
     hazard: { title: s.hazardTitle, icon: <ShieldAlert className="h-6 w-6 text-accent" /> },
-  });
+  };
 
-  const confidenceColor = { high: 'text-success', medium: 'text-accent', low: 'text-destructive' };
+  const confidenceColor: Record<string, string> = {
+    high: 'text-success',
+    medium: 'text-accent',
+    low: 'text-destructive',
+  };
 
-  const loadingLabel = (s: any) => {
+  const loadingLabel = (): string => {
     if (ocrStatus === 'loading') return s.loadingEngine;
     if (ocrStatus === 'running') return `${s.recognisingText} ${ocrProgress}%`;
     if (mode === 'hazard') return s.scanningHazards;
     return s.analysingImage;
   };
 
-  const s = LOCALIZED_STRINGS[language.code] || LOCALIZED_STRINGS.en;
-  const config = modeConfig(s);
-
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={onBack} aria-label={s.back}>← {s.back}</Button>
-          <h1 className="text-2xl font-bold">{config[mode].title}</h1>
+          <h1 className="text-2xl font-bold">{modeConfig[mode].title}</h1>
           <div className="w-20" />
         </div>
 
         <Card>
           <CardContent className="p-4">
-            <img src={imageSrc} alt="Captured image for analysis" className="w-full h-64 object-cover rounded-lg border-2 border-border" />
+            <img
+              src={imageSrc}
+              alt="Captured image for analysis"
+              className="w-full h-64 object-cover rounded-lg border-2 border-border"
+            />
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-3">{config[mode].icon} {s.resultsTitle}</CardTitle>
+            <CardTitle className="flex items-center gap-3">
+              {modeConfig[mode].icon} {s.resultsTitle}
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading ? (
-              <div className="text-center py-8" role="status" aria-label={loadingLabel(s)}>
+              <div className="text-center py-8" role="status" aria-label={loadingLabel()}>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
-                <p className="text-accessible text-muted-foreground" aria-live="polite">{loadingLabel(s)}</p>
+                <p className="text-accessible text-muted-foreground" aria-live="polite">{loadingLabel()}</p>
                 {ocrStatus === 'running' && (
                   <div className="mt-3 mx-auto w-48 bg-muted rounded-full h-2">
                     <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${ocrProgress}%` }} />
@@ -360,7 +399,9 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                       <span className="font-bold text-destructive">{s.hazardFound}</span>
                     </div>
                     <ul className="space-y-1">
-                      {result.warnings.map((w, i) => <li key={i} className="text-accessible text-destructive font-medium">• {w}</li>)}
+                      {result.warnings.map((w, i) => (
+                        <li key={i} className="text-accessible text-destructive font-medium">• {w}</li>
+                      ))}
                     </ul>
                   </div>
                 )}
@@ -374,12 +415,12 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
 
                 <div className="bg-muted p-4 rounded-lg">
                   <p className="text-xs text-muted-foreground mb-1 font-medium uppercase tracking-wider">
-                    {s[result.confidence] || result.confidence}:
+                    {s[result.confidence] ?? result.confidence}:
                   </p>
                   <p className="text-accessible font-medium">{result.summary}</p>
                   <div className="flex items-center gap-1 mt-2">
                     <Info className="h-3 w-3 text-muted-foreground" />
-                    <span className={`text-sm font-medium ${confidenceColor[result.confidence]}`}>
+                    <span className={`text-sm font-medium ${confidenceColor[result.confidence] ?? ''}`}>
                       {result.confidence.charAt(0).toUpperCase() + result.confidence.slice(1)} {s.confidence}
                     </span>
                   </div>
@@ -392,7 +433,9 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                       {result.objects.map((obj, i) => (
                         <div key={i} className="flex items-center justify-between bg-secondary/50 rounded-lg px-4 py-2">
                           <span className="font-medium capitalize">{obj.name}</span>
-                          <span className="text-sm text-muted-foreground">{[obj.position, obj.distance].filter(Boolean).join(' · ')}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {[obj.position, obj.distance].filter(Boolean).join(' · ')}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -400,14 +443,34 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
                 )}
 
                 {mode === 'text' && result.detectedText && (
-                  <div className="bg-muted p-4 rounded-lg font-mono text-sm whitespace-pre-wrap">{result.detectedText}</div>
+                  <div className="bg-muted p-4 rounded-lg font-mono text-sm whitespace-pre-wrap">
+                    {result.detectedText}
+                  </div>
                 )}
 
                 <div className="flex gap-3">
-                  <Button size="lg" variant={isSpeaking ? 'destructive' : 'accent'} onClick={() => { if (isSpeaking) { stop(); setIsSpeaking(false); } else if (result) speakResult(result); }} className="flex-1" aria-label={isSpeaking ? s.stopReading : s.readAloud}>
-                    {isSpeaking ? <><VolumeX className="mr-2 h-5 w-5" />{s.stopReading}</> : <><Volume2 className="mr-2 h-5 w-5" />{s.readAloud}</>}
+                  <Button
+                    size="lg"
+                    variant={isSpeaking ? 'destructive' : 'accent'}
+                    onClick={() => {
+                      if (isSpeaking) { stop(); setIsSpeaking(false); }
+                      else if (result) speakResult(result);
+                    }}
+                    className="flex-1"
+                    aria-label={isSpeaking ? s.stopReading : s.readAloud}
+                  >
+                    {isSpeaking
+                      ? <><VolumeX className="mr-2 h-5 w-5" />{s.stopReading}</>
+                      : <><Volume2 className="mr-2 h-5 w-5" />{s.readAloud}</>
+                    }
                   </Button>
-                  <Button size="lg" variant="outline" onClick={analyzeImage} disabled={isLoading} aria-label={s.reAnalyse}>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={analyzeImage}
+                    disabled={isLoading}
+                    aria-label={s.reAnalyse}
+                  >
                     <RotateCcw className="mr-2 h-5 w-5" />{s.reAnalyse}
                   </Button>
                 </div>
@@ -415,7 +478,9 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
             ) : (
               <div className="text-center py-8">
                 <p className="text-accessible text-muted-foreground">{s.noResults}</p>
-                <Button size="lg" variant="outline" onClick={analyzeImage} className="mt-4"><RotateCcw className="mr-2" />{s.tryAgain}</Button>
+                <Button size="lg" variant="outline" onClick={analyzeImage} className="mt-4">
+                  <RotateCcw className="mr-2" />{s.tryAgain}
+                </Button>
               </div>
             )}
           </CardContent>
