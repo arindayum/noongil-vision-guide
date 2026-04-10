@@ -17,12 +17,13 @@ export const useVoiceCommands = (
   const [error, setError] = useState<string | null>(null);
   const optionsRef = useRef(options);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  // useRef for error so onend closure always sees the current value
   const errorRef = useRef<string | null>(null);
+  // BUG FIX: enabledRef needed so the onend closure always sees the current enabled value
+  // without being stale. Previously enabled was captured at closure creation time.
+  const enabledRef = useRef(enabled);
 
-  useEffect(() => {
-    optionsRef.current = options;
-  }, [options]);
+  useEffect(() => { optionsRef.current = options; }, [options]);
+  useEffect(() => { enabledRef.current = enabled; }, [enabled]);
 
   useEffect(() => {
     if (!window.isSecureContext && window.location.hostname !== 'localhost') {
@@ -36,19 +37,22 @@ export const useVoiceCommands = (
     if (recognitionRef.current) {
       recognitionRef.current.onend = null;
       recognitionRef.current.onerror = null;
-      try {
-        recognitionRef.current.stop();
-      } catch {
-        // Already stopped
-      }
+      recognitionRef.current.onresult = null;
+      try { recognitionRef.current.stop(); } catch { /* already stopped */ }
       recognitionRef.current = null;
       setIsListening(false);
     }
   }, []);
 
+  // BUG FIX: startListening was recreated every time `lang` changed because it was
+  // declared with useCallback([...lang...]) but also referenced stopRecognition.
+  // The restart loop would rapidly fire on lang changes. Fixed by using a ref for lang too.
+  const langRef = useRef(lang);
+  useEffect(() => { langRef.current = lang; }, [lang]);
+
   const startListening = useCallback(() => {
-    // Explicit parentheses for clarity
-    if (!enabled || (!window.isSecureContext && window.location.hostname !== 'localhost')) return;
+    if (!enabledRef.current) return;
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') return;
 
     const SpeechRecognition =
       window.SpeechRecognition ?? (window as any).webkitSpeechRecognition;
@@ -67,13 +71,13 @@ export const useVoiceCommands = (
 
     recognition.continuous = true;
     recognition.interimResults = false;
-    recognition.lang = lang;
+    // BUG FIX: use langRef so we always get the current lang without re-creating the callback
+    recognition.lang = langRef.current;
 
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
       errorRef.current = null;
-      if (import.meta.env.DEV) console.log('Speech recognition active, lang:', lang);
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -81,85 +85,60 @@ export const useVoiceCommands = (
         .toLowerCase()
         .trim();
 
-      if (import.meta.env.DEV) console.log('Voice command heard:', transcript);
+      if (checkGlobalSpeaking()) return;
 
-      if (checkGlobalSpeaking()) {
-        if (import.meta.env.DEV) console.log('Ignoring command because app is speaking');
-        return;
-      }
-
-      // Hindi and Marathi expanded keywords
       const isDescribe =
-        transcript.includes('describe') ||
-        transcript.includes('scene') ||
-        transcript.includes('look') ||
-        transcript.includes('क्या है') || // Hindi: what is
-        transcript.includes('दिखाओ') ||   // Hindi: show
-        transcript.includes('काय आहे') || // Marathi: what is
-        transcript.includes('दाखवा');    // Marathi: show
+        transcript.includes('describe') || transcript.includes('scene') ||
+        transcript.includes('look') || transcript.includes('क्या है') ||
+        transcript.includes('दिखाओ') || transcript.includes('काय आहे') ||
+        transcript.includes('दाखवा');
 
       const isRead =
-        transcript.includes('read') ||
-        transcript.includes('text') ||
-        transcript.includes('पढ़ो') ||   // Hindi: read
-        transcript.includes('लिखा') ||   // Hindi: written
-        transcript.includes('वाच') ||    // Marathi: read
-        transcript.includes('लिहिलेला'); // Marathi: written
+        transcript.includes('read') || transcript.includes('text') ||
+        transcript.includes('पढ़ो') || transcript.includes('लिखा') ||
+        transcript.includes('वाच') || transcript.includes('लिहिलेला');
 
       const isEmergency =
-        transcript.includes('emergency') ||
-        transcript.includes('911') ||
-        transcript.includes('help') ||
-        transcript.includes('मदद') ||    // Hindi: help
-        transcript.includes('बचाओ') ||   // Hindi: save
-        transcript.includes('मदत') ||    // Marathi: help
-        transcript.includes('वाचवा');    // Marathi: save
+        transcript.includes('emergency') || transcript.includes('911') ||
+        transcript.includes('help') || transcript.includes('मदद') ||
+        transcript.includes('बचाओ') || transcript.includes('मदत') ||
+        transcript.includes('वाचवा');
 
       const isStop =
-        transcript.includes('stop') ||
-        transcript.includes('cancel') ||
-        transcript.includes('रुको') ||   // Hindi: stop
-        transcript.includes('बंद') ||   // Hindi/Marathi: close/stop
-        transcript.includes('थांबा');    // Marathi: stop
+        transcript.includes('stop') || transcript.includes('cancel') ||
+        transcript.includes('रुको') || transcript.includes('बंद') ||
+        transcript.includes('थांबा');
 
-      if (isDescribe) {
-        optionsRef.current.onDescribe();
-      } else if (isRead) {
-        optionsRef.current.onRead();
-      } else if (isEmergency) {
-        optionsRef.current.onEmergency();
-      } else if (isStop) {
-        optionsRef.current.onStop();
-      }
+      if (isDescribe) optionsRef.current.onDescribe();
+      else if (isRead) optionsRef.current.onRead();
+      else if (isEmergency) optionsRef.current.onEmergency();
+      else if (isStop) optionsRef.current.onStop();
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      if (import.meta.env.DEV) console.error('Speech recognition error:', event.error);
-
       if (event.error === 'not-allowed') {
         const msg = 'Microphone permission denied.';
-        setError(msg);
-        errorRef.current = msg;
+        setError(msg); errorRef.current = msg;
       } else if (event.error === 'network') {
         const msg = 'Network error: Voice control requires internet connection.';
-        setError(msg);
-        errorRef.current = msg;
+        setError(msg); errorRef.current = msg;
       } else if (event.error === 'aborted') {
-        // Expected when stopped by code — not an error
+        // Expected when stopped programmatically — not an error
       } else {
         const msg = `Voice error: ${event.error}`;
-        setError(msg);
-        errorRef.current = msg;
+        setError(msg); errorRef.current = msg;
       }
       setIsListening(false);
     };
 
     recognition.onend = () => {
       setIsListening(false);
-      // Use errorRef (not state) to avoid stale closure
-      if (enabled && !errorRef.current) {
+      // BUG FIX: Use enabledRef (not captured `enabled`) to prevent stale closure.
+      // Original bug: if enabled changed to false AFTER this closure was created,
+      // the restart would still fire because the old value was captured.
+      if (enabledRef.current && !errorRef.current) {
         setTimeout(() => {
-          if (enabled) startListening();
+          if (enabledRef.current) startListening();
         }, 1000);
       }
     };
@@ -168,26 +147,27 @@ export const useVoiceCommands = (
       recognition.start();
     } catch {
       const msg = 'Could not start voice control.';
-      setError(msg);
-      errorRef.current = msg;
+      setError(msg); errorRef.current = msg;
     }
-  }, [enabled, lang, stopRecognition]);
+  }, [stopRecognition]); // BUG FIX: removed `enabled` and `lang` from deps — using refs
 
+  // BUG FIX: The 'app-speech-state' listener was registered with [enabled, startListening]
+  // deps. Because startListening changed on every lang/enabled change, this registered
+  // and removed the listener on every render. Now stable via refs.
   useEffect(() => {
-    const handleSpeechState = (e: any) => {
-      const isAppSpeaking = e.detail.isSpeaking;
-      if (isAppSpeaking) {
-        // Just stop recognition for now, onend will restart it if enabled
+    const handleSpeechState = (e: CustomEvent<{ isSpeaking: boolean }>) => {
+      if (e.detail.isSpeaking) {
+        // Pause recognition while TTS is speaking to avoid echo commands
         if (recognitionRef.current) {
-          try { recognitionRef.current.stop(); } catch { }
+          try { recognitionRef.current.stop(); } catch { /* ignore */ }
         }
-      } else if (enabled) {
+      } else if (enabledRef.current) {
         startListening();
       }
     };
-    window.addEventListener('app-speech-state', handleSpeechState);
-    return () => window.removeEventListener('app-speech-state', handleSpeechState);
-  }, [enabled, startListening]);
+    window.addEventListener('app-speech-state', handleSpeechState as EventListener);
+    return () => window.removeEventListener('app-speech-state', handleSpeechState as EventListener);
+  }, [startListening]);
 
   useEffect(() => {
     if (enabled && !checkGlobalSpeaking()) {
@@ -197,6 +177,16 @@ export const useVoiceCommands = (
     }
     return () => stopRecognition();
   }, [enabled, startListening, stopRecognition]);
+
+  // BUG FIX: When the language changes, restart recognition with the new lang.
+  // Without this the recognition would keep using the old language even after a
+  // language switch in settings.
+  useEffect(() => {
+    if (enabled && isListening) {
+      stopRecognition();
+      setTimeout(() => { if (enabledRef.current) startListening(); }, 300);
+    }
+  }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { isListening, error };
 };
