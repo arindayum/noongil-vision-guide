@@ -1,4 +1,4 @@
-# NoonGil — Assistive Vision AI
+# DoorDrushti — Assistive Vision AI
 
 > An Android application that helps visually impaired users understand their surroundings using AI-powered object detection, text recognition, and hazard scanning — with full voice control and multilingual support.
 
@@ -50,7 +50,7 @@ It introduces significant improvements across four areas: AI prompt engineering,
 ### Week 3 — Depth & Polish
 - **Onboarding screen** — 3-step tutorial shown on first launch. Each step has a "Read aloud" button so visually impaired users can hear the instructions. Skippable. Only shown once.
 - **Settings screen** — Font size (Normal / Large / X-Large), speech rate slider with live test button, theme (Light / Dark / System), high contrast toggle, auto-speak toggle, emergency contacts manager.
-- **Custom emergency contacts** — Users can save any name and phone number as an emergency contact (e.g. "Mum", "Doctor"). Replaces the hardcoded 911 number. Contacts appear as individual call buttons in the Emergency Help screen.
+- **Custom emergency contacts** — Users can save any name and phone number as an emergency contact (e.g. "Mum", "Doctor"). Replaces the hardcoded 112 number. Contacts appear as individual call buttons in the Emergency Help screen.
 - **Offline OCR** — When there is no network connection and the user is in Text Recognition mode, the app falls back to on-device OCR using Tesseract.js (loaded from CDN on first use). An "Offline mode" badge is shown on results. Accuracy is lower than Gemini but the app remains functional.
 - **`SettingsContext`** — New React context applying font size, theme, and high contrast changes to the document root in real time.
 - **`useEmergencyContacts` hook** — Manages contacts in `localStorage` with add, remove, and update operations.
@@ -230,8 +230,8 @@ src/
 
 public/
 ├── icons/
-│   ├── icon-192.png            # PWA icon
-│   └── icon-512.png            # PWA icon
+│   ├── android-chrome-192x192.png   # PWA icon
+│   └── android-chrome-512x512.png   # PWA icon
 ├── manifest.json               # PWA manifest
 └── sw.js                       # Service worker
 ```
@@ -277,4 +277,4 @@ When there is no internet connection:
 ## License
 
 This project was developed as a final year engineering project.
-All rights reserved © 2025 
+All rights reserved © 2025 Rachana.
