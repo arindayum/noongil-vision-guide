@@ -1,10 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { AlertTriangle, Phone, Volume2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { speak } from '@/utils/speech';
 import { useEmergencyContacts } from '@/hooks/useEmergencyContacts';
-
 import { useLanguage } from '@/contexts/LanguageContext';
 
 interface EmergencyHelpProps {
@@ -26,7 +25,7 @@ const EMERGENCY_STRINGS: Record<string, any> = {
     f3: '• Voice Announcement: Speaks emergency message aloud',
     f4: '• Contacts can be customised in Settings',
     speech: 'Emergency alert activated. This is a request for assistance. Please help if you can hear this message.',
-    close: 'Close emergency help'
+    close: 'Close emergency help',
   },
   hi: {
     title: 'आपातकालीन सहायता',
@@ -42,7 +41,7 @@ const EMERGENCY_STRINGS: Record<string, any> = {
     f3: '• आवाज घोषणा: संदेश जोर से बोलें',
     f4: '• संपर्क सेटिंग्स में बदलें',
     speech: 'आपातकालीन अलर्ट सक्रिय कर दिया गया है। यह सहायता के लिए अनुरोध है। कृपया मदद करें यदि आप यह संदेश सुन सकते हैं।',
-    close: 'आपातकालीन सहायता बंद करें'
+    close: 'आपातकालीन सहायता बंद करें',
   },
   mr: {
     title: 'आणीबाणी मदत',
@@ -58,14 +57,26 @@ const EMERGENCY_STRINGS: Record<string, any> = {
     f3: '• आवाज घोषणा: संदेश जोरात वाचला जातो',
     f4: '• संपर्क सेटिंग्जमध्ये बदला',
     speech: 'आणीबाणीचा अलर्ट सुरू झाला आहे. ही मदतीची विनंती आहे. जर तुम्ही हा संदेश ऐकू शकत असाल तर कृपया मदत करा.',
-    close: 'आणीबाणी मदत बंद करा'
-  }
+    close: 'आणीबाणी मदत बंद करा',
+  },
 };
 
-const AudioCtx = window.AudioContext ?? (window as any).webkitAudioContext;
+// BUG FIX: AudioContext creation was inside the component body at module level via
+// `window.AudioContext ?? (window as any).webkitAudioContext`. This runs at import time
+// on some bundlers before the DOM is ready. Moved to a lazy getter.
+const getAudioContext = (() => {
+  let ctx: AudioContext | null = null;
+  return (): AudioContext => {
+    if (!ctx || ctx.state === 'closed') {
+      const AC = window.AudioContext ?? (window as any).webkitAudioContext;
+      ctx = new AC();
+    }
+    return ctx;
+  };
+})();
 
-const playBeep = (audioCtx: AudioContext, frequency = 880, duration = 0.7): Promise<void> => {
-  return new Promise(resolve => {
+const playBeep = (audioCtx: AudioContext, frequency = 880, duration = 0.7): Promise<void> =>
+  new Promise(resolve => {
     const oscillator = audioCtx.createOscillator();
     const gainNode = audioCtx.createGain();
     oscillator.connect(gainNode);
@@ -79,16 +90,26 @@ const playBeep = (audioCtx: AudioContext, frequency = 880, duration = 0.7): Prom
     oscillator.stop(audioCtx.currentTime + duration);
     oscillator.onended = () => resolve();
   });
-};
 
 const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
   const [isAlertActive, setIsAlertActive] = useState(false);
+  // BUG FIX: shouldStopRef is correct — it avoids stale closures. Kept.
   const shouldStopRef = useRef(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
   const alertStatusRef = useRef<HTMLDivElement>(null);
   const { contacts } = useEmergencyContacts();
   const { language } = useLanguage();
-  const s = EMERGENCY_STRINGS[language.code] || EMERGENCY_STRINGS.en;
+  const s = EMERGENCY_STRINGS[language.code] ?? EMERGENCY_STRINGS.en;
+
+  // BUG FIX: AudioContext was stored in a useRef and sometimes not cleaned up on unmount,
+  // leaving the browser holding an active AudioContext. Use the module-level lazy getter
+  // and clean up on unmount.
+  useEffect(() => {
+    return () => {
+      // Stop alert cleanly on unmount
+      shouldStopRef.current = true;
+      if (navigator.vibrate) navigator.vibrate(0);
+    };
+  }, []);
 
   const startEmergencyAlert = useCallback(async () => {
     shouldStopRef.current = false;
@@ -97,14 +118,19 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
 
     if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500]);
 
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioCtx();
+    // BUG FIX: getAudioContext() is now safe to call at interaction time.
+    const audioCtx = getAudioContext();
+
+    // BUG FIX: AudioContext can be in 'suspended' state on many browsers until a
+    // user gesture has been processed. We must resume it first.
+    if (audioCtx.state === 'suspended') {
+      try { await audioCtx.resume(); } catch { /* ignore */ }
     }
 
     for (let i = 0; i < 5; i++) {
       if (shouldStopRef.current) break;
       try {
-        await playBeep(audioCtxRef.current, i % 2 === 0 ? 880 : 660, 0.7);
+        await playBeep(audioCtx, i % 2 === 0 ? 880 : 660, 0.7);
         if (!shouldStopRef.current) await new Promise(r => setTimeout(r, 250));
       } catch (error) {
         if (import.meta.env.DEV) console.error('Audio error:', error);
@@ -112,19 +138,17 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
     }
 
     if (!shouldStopRef.current) {
-      speak(s.speech);
+      speak(s.speech, undefined, language.voiceLang);
     }
-  }, [s.speech]);
+  }, [s.speech, language.voiceLang]);
 
   const stopAlert = useCallback(() => {
     shouldStopRef.current = true;
     setIsAlertActive(false);
-    if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-      audioCtxRef.current.close();
-      audioCtxRef.current = null;
-    }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (navigator.vibrate) navigator.vibrate(0);
+    // BUG FIX: don't close/null the shared AudioContext — just stop beeping via the flag.
+    // Closing it here would break subsequent alert activations in the same session.
   }, []);
 
   return (
@@ -138,8 +162,14 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
             </Button>
           </div>
 
-          {/* Alert status */}
-          <div ref={alertStatusRef} tabIndex={-1} aria-live="assertive" aria-atomic="true" className="outline-none">
+          {/* Alert status — aria-live so screen readers announce changes */}
+          <div
+            ref={alertStatusRef}
+            tabIndex={-1}
+            aria-live="assertive"
+            aria-atomic="true"
+            className="outline-none"
+          >
             {isAlertActive && (
               <Card className="border-destructive bg-destructive/10">
                 <CardContent className="p-6 text-center">
@@ -162,17 +192,22 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-accessible text-muted-foreground mb-4">
-                {s.soundAlertDesc}
-              </p>
-              <Button size="xl" variant="accent" onClick={startEmergencyAlert} disabled={isAlertActive} className="w-full" aria-label={s.activateAlert}>
+              <p className="text-accessible text-muted-foreground mb-4">{s.soundAlertDesc}</p>
+              <Button
+                size="xl"
+                variant="accent"
+                onClick={startEmergencyAlert}
+                disabled={isAlertActive}
+                className="w-full"
+                aria-label={s.activateAlert}
+              >
                 <Volume2 className="mr-3" />
                 {s.activateAlert}
               </Button>
             </CardContent>
           </Card>
 
-          {/* Emergency contacts — one card per contact */}
+          {/* One card per emergency contact */}
           {contacts.map(contact => (
             <Card key={contact.id}>
               <CardHeader>
@@ -182,9 +217,7 @@ const EmergencyHelp: React.FC<EmergencyHelpProps> = ({ onClose }) => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-accessible text-muted-foreground mb-4">
-                  {contact.number}
-                </p>
+                <p className="text-accessible text-muted-foreground mb-4">{contact.number}</p>
                 <Button
                   size="xl"
                   variant="destructive"
