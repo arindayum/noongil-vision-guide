@@ -7,7 +7,7 @@ interface OnboardingProps {
   onComplete: () => void;
 }
 
-const ONBOARDING_KEY = 'noongil_onboarded';
+const ONBOARDING_KEY = 'doordrushti_onboarded';
 
 export const hasCompletedOnboarding = (): boolean => {
   return localStorage.getItem(ONBOARDING_KEY) === 'true';
@@ -18,18 +18,18 @@ const steps = [
     icon: <Eye className="h-16 w-16 text-primary" />,
     title: 'Detect Objects',
     description:
-      'Point your camera at any scene and NoonGil will describe what it sees — objects, people, and surroundings — including how far away they are.',
+      'Point your camera at any scene and DoorDrushti will describe what it sees — objects, people, and surroundings — including how far away they are.',
     voiceText:
-      'Step one. Detect Objects. Point your camera at any scene and NoonGil will describe what it sees, including how far away things are.',
+      'Step one. Detect Objects. Point your camera at any scene and DoorDrushti will describe what it sees, including how far away things are.',
     tip: 'Voice command: say "Describe scene"',
   },
   {
     icon: <FileText className="h-16 w-16 text-primary" />,
     title: 'Read Text',
     description:
-      'Capture signs, labels, medicine bottles, documents, or any written text. NoonGil will read it aloud for you.',
+      'Capture signs, labels, medicine bottles, documents, or any written text. DoorDrushti will read it aloud for you.',
     voiceText:
-      'Step two. Read Text. Capture any written text — signs, labels, or documents — and NoonGil will read it aloud.',
+      'Step two. Read Text. Capture any written text — signs, labels, or documents — and DoorDrushti will read it aloud.',
     tip: 'Voice command: say "Read text"',
   },
   {
@@ -61,13 +61,8 @@ const OnboardingScreen: React.FC<OnboardingProps> = ({ onComplete }) => {
     onComplete();
   };
 
-  const handleSpeak = () => {
-    speak(current.voiceText);
-  };
-
   return (
     <main className="min-h-screen bg-background flex flex-col">
-      {/* Skip */}
       <div className="flex justify-end p-4">
         <button
           onClick={handleSkip}
@@ -78,24 +73,18 @@ const OnboardingScreen: React.FC<OnboardingProps> = ({ onComplete }) => {
         </button>
       </div>
 
-      {/* Step content */}
       <div className="flex-1 flex flex-col items-center justify-center px-8 text-center space-y-6">
         <div aria-hidden="true">{current.icon}</div>
-
         <h1 className="text-3xl font-bold">{current.title}</h1>
-
         <p className="text-lg text-muted-foreground leading-relaxed max-w-sm">
           {current.description}
         </p>
-
         <div className="bg-muted rounded-xl px-5 py-3 text-sm font-medium text-muted-foreground">
           💡 {current.tip}
         </div>
-
-        {/* Read aloud button */}
         <Button
           variant="ghost"
-          onClick={handleSpeak}
+          onClick={() => speak(current.voiceText)}
           aria-label="Read this step aloud"
           className="flex items-center gap-2 text-primary"
         >
@@ -104,9 +93,7 @@ const OnboardingScreen: React.FC<OnboardingProps> = ({ onComplete }) => {
         </Button>
       </div>
 
-      {/* Step indicators + Next */}
       <div className="p-8 space-y-6">
-        {/* Dots */}
         <div className="flex justify-center gap-3" role="tablist" aria-label="Onboarding steps">
           {steps.map((s, i) => (
             <button
@@ -116,14 +103,11 @@ const OnboardingScreen: React.FC<OnboardingProps> = ({ onComplete }) => {
               aria-label={`Step ${i + 1}: ${s.title}`}
               onClick={() => setStep(i)}
               className={`h-3 rounded-full transition-all duration-200 ${
-                i === step
-                  ? 'w-8 bg-primary'
-                  : 'w-3 bg-border hover:bg-muted-foreground'
+                i === step ? 'w-8 bg-primary' : 'w-3 bg-border hover:bg-muted-foreground'
               }`}
             />
           ))}
         </div>
-
         <Button
           size="xl"
           onClick={handleNext}
