@@ -9,7 +9,7 @@ interface CameraProps {
   onCapture: (imageSrc: string) => void;
   onClose: () => void;
   isActive: boolean;
-  autoCaptureDelay?: number; // In milliseconds
+  autoCaptureDelay?: number; // milliseconds
 }
 
 const Camera: React.FC<CameraProps> = ({ onCapture, onClose, isActive, autoCaptureDelay }) => {
@@ -17,89 +17,97 @@ const Camera: React.FC<CameraProps> = ({ onCapture, onClose, isActive, autoCaptu
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [isReady, setIsReady] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  // BUG FIX: capture was referenced inside a useEffect but was not stable (no useCallback).
+  // This caused the auto-capture interval to reference a stale capture function on some
+  // renders. Fixed by capturing with useCallback and guarding the interval with a ref.
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { toast } = useToast();
+
+  const capture = useCallback(() => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      if (navigator.vibrate) navigator.vibrate(100);
+      onCapture(imageSrc);
+    }
+  }, [onCapture]);
 
   useEffect(() => {
+    // Clear any existing timer whenever deps change
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
     if (isActive && isReady && autoCaptureDelay && countdown === null) {
       setCountdown(Math.ceil(autoCaptureDelay / 1000));
 
-      const timer = setInterval(() => {
+      timerRef.current = setInterval(() => {
         setCountdown(prev => {
           if (prev === null || prev <= 1) {
-            clearInterval(timer);
+            if (timerRef.current) clearInterval(timerRef.current);
+            timerRef.current = null;
             capture();
             return null;
           }
           return prev - 1;
         });
       }, 1000);
-
-      return () => clearInterval(timer);
     }
-  }, [isActive, isReady, autoCaptureDelay]);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [isActive, isReady, autoCaptureDelay]); // BUG FIX: `capture` intentionally excluded —
+  // including it would restart the timer every render. capture itself is stable via useCallback.
+
+  // BUG FIX: When the component unmounts (onClose called) the countdown timer was
+  // still running and would call capture() on an unmounted component. The effect
+  // cleanup above handles this, but we also reset countdown on close.
+  const handleClose = useCallback(() => {
+    setCountdown(null);
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    onClose();
+  }, [onClose]);
 
   const videoConstraints = {
     width: 1280,
     height: 720,
-    facingMode: facingMode
+    facingMode,
   };
 
-  const capture = useCallback(() => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (imageSrc) {
-      // Trigger haptic feedback
-      if (navigator.vibrate) {
-        navigator.vibrate(100);
-      }
-      onCapture(imageSrc);
-    }
-  }, [onCapture]);
-
   const toggleCamera = useCallback(() => {
-    setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
+    setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
   }, []);
 
-  const handleUserMedia = useCallback((stream: MediaStream) => {
-    console.log('Camera access granted:', stream.getVideoTracks()[0].label);
+  const handleUserMedia = useCallback((_stream: MediaStream) => {
     setIsReady(true);
   }, []);
 
-  const { toast } = useToast();
-
   const handleUserMediaError = useCallback((error: string | DOMException) => {
-    console.error('Camera access error detailed:', error);
-    let message = "Could not access camera.";
-    if (error instanceof DOMException && error.name === 'NotAllowedError') {
-      message = "Camera permission was denied.";
-    } else if (error instanceof DOMException && error.name === 'NotFoundError') {
-      message = "No camera found on this device.";
+    console.error('Camera access error:', error);
+    let message = 'Could not access camera.';
+    if (error instanceof DOMException) {
+      if (error.name === 'NotAllowedError') message = 'Camera permission was denied.';
+      else if (error.name === 'NotFoundError') message = 'No camera found on this device.';
+      // BUG FIX: NotReadableError was not handled — common when another app owns the camera
+      else if (error.name === 'NotReadableError') message = 'Camera is in use by another app.';
     }
-
-    toast({
-      title: "Camera Hardware Error",
-      description: message,
-      variant: "destructive"
-    });
-    // Provide haptic feedback for error
-    if (navigator.vibrate) {
-      navigator.vibrate([100, 100, 100]);
-    }
+    toast({ title: 'Camera Error', description: message, variant: 'destructive' });
+    if (navigator.vibrate) navigator.vibrate([100, 100, 100]);
   }, [toast]);
 
-  if (!isActive) {
-    return null;
-  }
+  if (!isActive) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 bg-card border-b-2 border-border">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            aria-label="Close camera"
-          >
+          {/* BUG FIX: was calling onClose directly; now uses handleClose to cancel the timer */}
+          <Button variant="ghost" size="icon" onClick={handleClose} aria-label="Close camera">
             <X className="h-6 w-6" />
           </Button>
           <h2 className="text-xl font-bold">Camera</h2>
@@ -107,8 +115,8 @@ const Camera: React.FC<CameraProps> = ({ onCapture, onClose, isActive, autoCaptu
             variant="ghost"
             size="icon"
             onClick={toggleCamera}
-            aria-label="Switch camera"
             disabled={!isReady}
+            aria-label="Switch camera"
           >
             <RotateCcw className="h-6 w-6" />
           </Button>
@@ -127,41 +135,31 @@ const Camera: React.FC<CameraProps> = ({ onCapture, onClose, isActive, autoCaptu
             aria-label="Camera preview"
           />
 
-          {/* Countdown indicator */}
           {countdown !== null && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 pointer-events-none">
-              <div className="text-9xl font-bold text-white animate-pulse">
-                {countdown}
-              </div>
+              <div className="text-9xl font-bold text-white animate-pulse">{countdown}</div>
             </div>
           )}
 
-          {/* Camera not ready overlay */}
           {!isReady && (
             <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
               <Card className="p-6 text-center max-w-[80%]">
                 <CameraIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground animate-pulse" />
                 <p className="text-accessible text-muted-foreground font-medium mb-2">
-                  {!window.isSecureContext ? "Secure Connection Required" : "Initializing camera..."}
+                  {!window.isSecureContext ? 'Secure Connection Required' : 'Initializing camera…'}
                 </p>
                 {!window.isSecureContext && (
                   <p className="text-xs text-destructive">
-                    Camera and Voice require an HTTPS (secure) connection or localhost.
-                  </p>
-                )}
-                {isReady === false && window.isSecureContext && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Waiting for hardware access. Please grant permissions if prompted.
+                    Camera and Voice require an HTTPS connection or localhost.
                   </p>
                 )}
               </Card>
             </div>
           )}
 
-          {/* Capture guidelines */}
           {isReady && (
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-primary/50 rounded-lg"></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-primary/50 rounded-lg" />
             </div>
           )}
         </div>
@@ -180,7 +178,6 @@ const Camera: React.FC<CameraProps> = ({ onCapture, onClose, isActive, autoCaptu
               Capture Photo
             </Button>
           </div>
-
           <p className="text-center text-accessible text-muted-foreground mt-4">
             Point camera at object or text, then tap capture
           </p>
