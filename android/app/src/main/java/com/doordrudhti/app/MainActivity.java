@@ -1,4 +1,4 @@
-package dev.lovable.noongil;
+package com.doordrudhti.app;
 
 import com.getcapacitor.BridgeActivity;
 

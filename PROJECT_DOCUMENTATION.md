@@ -134,6 +134,6 @@ Capacitor requires these in `AndroidManifest.xml`:
 
 ## 🗺️ Future Roadmap
 - [ ] **Real-time Streaming**: Moving from static capture to continuous frame analysis.
-- [ ] **Multi-language Support**: Voice commands and TTS in localized languages.
+- [x] **Multi-language Support**: Voice commands and TTS in localized languages (Hindi & Marathi added).
 - [ ] **Offline OCR**: Utilizing on-device ML for basic text reading when data is unavailable.
 - [ ] **Navigation Mode**: Integrating GPS and indoor mapping for directional assistance.

@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">NoonGil</string>
-    <string name="title_activity_main">NoonGil</string>
-    <string name="package_name">dev.lovable.noongil</string>
-    <string name="custom_url_scheme">dev.lovable.noongil</string>
+    <string name="app_name">DoorDrushti</string>
+    <string name="title_activity_main">DoorDrushti</string>
+    <string name="package_name">com.doordrudhti.app</string>
+    <string name="custom_url_scheme">com.doordrudhti.app</string>
 </resources>
