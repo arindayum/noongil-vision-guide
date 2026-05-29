@@ -1,6 +1,6 @@
 # DoorDrushti - Comprehensive Technical Deep Dive
 
-DoorDrushti is a state-of-the-art assistive vision application built for Android. It leverages Google's Gemini 2.5 Flash model to provide real-time, voice-controlled scene descriptions and OCR (Optical Character Recognition) for visually impaired users.
+DoorDrushti is a state-of-the-art assistive vision application built for Android. It leverages Google's Gemini 2.5 Flash model via OpenRouter to provide real-time, voice-controlled scene descriptions and OCR (Optical Character Recognition) for visually impaired users.
 
 ---
 
@@ -11,7 +11,7 @@ DoorDrushti is a state-of-the-art assistive vision application built for Android
 | :--- | :--- | :--- | :--- |
 | **Frontend** | React + Vite | `^18.3.1`, `Vite ^5.4.19` | Fast HMR and lightweight bundle for mobile performance. |
 | **Mobile Bridge** | Capacitor | `@capacitor/core ^8.0.2` | Native performance with web-stack flexibility. |
-| **Vision AI** | Gemini 2.5 Flash | `v1beta/generateContent` | Ultra-low latency analysis (Flash model optimized for speed). |
+| **Vision AI** | Gemini 2.5 Flash | via OpenRouter API | Ultra-low latency analysis (Flash model optimized for speed). |
 | **UI Components** | Radix UI + shadcn | Accessible primitives | Built-in ARIA support and high-contrast styling. |
 | **State Management** | React Hooks | `useState`, `useEffect`, `useRef`, `useCallback` | Efficient, local-first state handling without heavy library overhead. |
 | **Utility** | TanStack Query | `^5.83.0` | Managed async states for API calls (potential integration). |
@@ -39,7 +39,7 @@ graph TD
 
     subgraph "External Services"
         F --> I[Webcam Stream]
-        G --> J[Google Gemini API]
+        G --> J[OpenRouter Gemini 2.5 Flash API]
         D --> K[Capacitor TTS / Web Synth]
     end
 ```
@@ -52,7 +52,7 @@ sequenceDiagram
     participant V as useVoiceCommands
     participant I as Index.tsx
     participant C as Camera.tsx
-    participant G as Gemini API
+    participant O as OpenRouter API
     participant S as speech.ts
 
     U->>V: Speaking "Describe scene"
@@ -63,8 +63,8 @@ sequenceDiagram
     C->>C: 3.5s Countdown
     C->>I: Return captured Image (Base64)
     I->>I: Set mode 'analysis'
-    I->>G: POST /generateContent (with image)
-    G-->>I: Returns JSON description
+    I->>O: POST /chat/completions (with image + prompt)
+    O-->>I: Returns JSON description
     I->>S: speak(description)
     S-->>U: Audio: "In front of you is..."
 ```
@@ -116,7 +116,7 @@ The app uses a hybrid approach to text-to-speech:
 ### Environment Variables
 Create a `.env` file in the root:
 ```bash
-VITE_GEMINI_API_KEY=your_google_api_key
+VITE_OPENROUTER_API_KEY=your_openrouter_api_key
 ```
 
 ### Android Permissions
@@ -127,7 +127,7 @@ Capacitor requires these in `AndroidManifest.xml`:
 
 ### Troubleshooting
 - **Mic not working?**: Check if the site is served over HTTPS. On Android, ensure Capacitor's `androidScheme` is `https`.
-- **429 API Error**: You've hit the Gemini free tier limit. Wait 60 seconds or use a production key.
+- **429 API Error**: You've hit the OpenRouter API limits or rate-limiting. Check your key balance.
 - **Camera black screen?**: Ensure no other app is holding the hardware lock on the camera.
 
 ---
@@ -135,5 +135,5 @@ Capacitor requires these in `AndroidManifest.xml`:
 ## 🗺️ Future Roadmap
 - [ ] **Real-time Streaming**: Moving from static capture to continuous frame analysis.
 - [x] **Multi-language Support**: Voice commands and TTS in localized languages (Hindi & Marathi added).
-- [ ] **Offline OCR**: Utilizing on-device ML for basic text reading when data is unavailable.
+- [x] **Offline OCR**: Utilizing on-device Tesseract.js for basic text reading when data is unavailable.
 - [ ] **Navigation Mode**: Integrating GPS and indoor mapping for directional assistance.

@@ -82,7 +82,7 @@ export const useOfflineOCR = () => {
     if (workerRef.current) {
       try {
         await workerRef.current.terminate();
-      } catch {}
+      } catch { }
       workerRef.current = null;
     }
     setStatus('idle');

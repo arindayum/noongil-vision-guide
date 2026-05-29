@@ -210,7 +210,7 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     stop();
 
     const base64Data = imageSrc.split(',')[1];
-    const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const openRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
 
     if (!navigator.onLine && mode === 'text') {
       const offlineResult = await runOfflineOCR();
@@ -226,8 +226,8 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
       return;
     }
 
-    if (!geminiApiKey) {
-      toast({ title: 'API Key Missing', description: 'Add VITE_GEMINI_API_KEY to your .env file.', variant: 'destructive' });
+    if (!openRouterApiKey) {
+      toast({ title: 'API Key Missing', description: 'Add VITE_OPENROUTER_API_KEY to your .env file.', variant: 'destructive' });
       setIsLoading(false);
       return;
     }
@@ -239,30 +239,47 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
             buildHazardPrompt(language.geminiInstruction);
 
       const response = await fetch(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+        'https://openrouter.ai/api/v1/chat/completions',
         {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openRouterApiKey}`,
+            'HTTP-Referer': 'https://doordrushti.app',
+            'X-Title': 'DoorDrushti',
+          },
           body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: prompt },
-                { inline_data: { mime_type: 'image/jpeg', data: base64Data } },
-              ]
-            }],
-            generationConfig: { responseMimeType: 'application/json' },
+            model: 'google/gemini-2.5-flash',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: prompt,
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:image/jpeg;base64,${base64Data}`,
+                    },
+                  },
+                ],
+              },
+            ],
+            response_format: { type: 'json_object' },
           }),
         }
       );
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error?.message || 'Gemini API call failed');
+        throw new Error(err.error?.message || 'OpenRouter API call failed');
       }
 
       const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) throw new Error('No response from Gemini');
+      const rawText = data.choices?.[0]?.message?.content;
+      if (!rawText) throw new Error('No response from OpenRouter');
 
       const parsed: StructuredResult = JSON.parse(rawText.replace(/```json|```/g, '').trim());
       setResult(parsed);
