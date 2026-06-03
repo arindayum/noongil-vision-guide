@@ -14,7 +14,6 @@
 - [Running on Android](#running-on-android)
 - [Project Structure](#project-structure)
 - [Voice Commands](#voice-commands)
-- [Offline Mode](#offline-mode)
 - [Known Limitations](#known-limitations)
 
 ---
@@ -29,7 +28,6 @@
 | Emergency Help | Loud alarm, vibration, and call to saved contacts |
 | Voice Control | Hands-free navigation via speech commands |
 | Multilingual | English, Hindi, Marathi — AI responds in chosen language |
-| Offline OCR | Basic text recognition without internet |
 | History | Last 10 analyses stored and replayable |
 | Settings | Font size, speech rate, theme, high contrast, contacts |
 | PWA | Installable on Android without APK distribution |
@@ -43,7 +41,6 @@
 | Framework | React 18 + TypeScript + Vite |
 | Mobile | Capacitor 8 (Android) |
 | AI | OpenRouter Gemini 2.5 Flash (via OpenAI-compatible Chat API) |
-| Offline OCR | Tesseract.js 5 (Bundled) |
 | UI | shadcn/ui + Tailwind CSS |
 | Voice Input | Web Speech API (SpeechRecognition) |
 | Voice Output | Capacitor Text-to-Speech (native Android) + Web Speech API (fallback) |
@@ -168,7 +165,6 @@ src/
 │   ├── useAnalytics.ts         # Local usage tracking
 │   ├── useEmergencyContacts.ts # Saved emergency contacts
 │   ├── useHistory.ts           # Analysis history in localStorage
-│   ├── useOfflineOCR.ts        # Tesseract.js offline text recognition
 │   ├── use-toast.ts            # Toast notifications
 │   └── useVoiceCommands.ts     # Speech recognition + voice command routing
 ├── pages/
@@ -202,16 +198,7 @@ The app listens continuously once activated. Supported commands:
 
 Hindi and Marathi voice commands are also supported when the respective language is selected. The app recognises "मदद" (Hindi: help) and "मदत" (Marathi: help) as emergency triggers.
 
----
 
-## Offline Mode
-
-When there is no internet connection:
-
-- **Object Detection** — not available offline (requires internet / OpenRouter API)
-- **Hazard Detection** — not available offline (requires internet / OpenRouter API)
-- **Text Recognition** — falls back to on-device OCR via Tesseract.js. Results are less accurate but functional. An "Offline mode" badge is displayed.
-- **All other features** — fully available offline (history, settings, emergency contacts, TTS)
 
 ---
 
@@ -219,7 +206,6 @@ When there is no internet connection:
 
 - OpenRouter API key is bundled in the client build. For production, this should be proxied through a backend server.
 - Speech recognition requires an active internet connection on Android (Web Speech API uses Google's servers).
-- Tesseract.js offline OCR is English-only regardless of language setting.
 - Object Detection and Hazard Detection modes do not have an offline fallback.
 - Distance estimation in Object Detection is approximate — Gemini estimates based on visual cues, not sensor data.
 
