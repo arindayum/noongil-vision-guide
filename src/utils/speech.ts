@@ -58,15 +58,13 @@ export const speak = async (
 
 export const stop = async (): Promise<void> => {
   setSpeaking(false);
+  webStop();
   if (Capacitor.isNativePlatform()) {
     try {
       await TextToSpeech.stop();
     } catch (error) {
       if (import.meta.env.DEV) console.error('Native Stop Error:', error);
-      webStop();
     }
-  } else {
-    webStop();
   }
 };
 

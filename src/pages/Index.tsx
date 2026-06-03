@@ -157,6 +157,7 @@ const Index = () => {
         setCapturedImage(null);
         setIsAutoCapturing(false);
         stop();
+        if (navigator.vibrate) navigator.vibrate(0);
       }, []),
 
       onHazardScan: useCallback(() => {

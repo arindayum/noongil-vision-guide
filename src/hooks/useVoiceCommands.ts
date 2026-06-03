@@ -70,7 +70,7 @@ export const useVoiceCommands = (
     recognitionRef.current = recognition;
 
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = langRef.current;
 
     recognition.onstart = () => {
@@ -80,20 +80,29 @@ export const useVoiceCommands = (
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[event.results.length - 1][0].transcript
-        .toLowerCase()
-        .trim();
+      let interimTranscript = '';
+      let finalTranscript = '';
 
-      if (import.meta.env.DEV) console.log('[VoiceCmd]', transcript);
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcriptSegment = event.results[i][0].transcript.toLowerCase();
+        if (event.results[i].isFinal) {
+          finalTranscript += transcriptSegment;
+        } else {
+          interimTranscript += transcriptSegment;
+        }
+      }
 
-      // FIX: STOP is always processed first — even during TTS playback.
-      // This lets the user interrupt a running description by saying "stop".
+      const activeTranscript = (finalTranscript || interimTranscript).trim();
+      if (import.meta.env.DEV) console.log('[VoiceCmd]', { final: finalTranscript, interim: interimTranscript });
+
+      // FIX: STOP is always processed first (on both interim and final transcripts).
+      // This lets the user interrupt a running description by saying "stop" without waiting for silence.
       const isStop =
-        transcript.includes('stop') ||
-        transcript.includes('cancel') ||
-        transcript.includes('बंद') ||
-        transcript.includes('थांबा') ||
-        transcript.includes('रुको');
+        activeTranscript.includes('stop') ||
+        activeTranscript.includes('cancel') ||
+        activeTranscript.includes('बंद') ||
+        activeTranscript.includes('थांबा') ||
+        activeTranscript.includes('रुको');
 
       if (isStop) {
         optionsRef.current.onStop();
@@ -102,6 +111,10 @@ export const useVoiceCommands = (
 
       // Skip all other commands while TTS is speaking to prevent self-triggering
       if (checkGlobalSpeaking()) return;
+
+      // Restrict other actions to final transcripts only so they don't trigger multiple times
+      if (!finalTranscript) return;
+      const transcript = finalTranscript.trim();
 
       const isDescribe =
         transcript.includes('describe') ||
