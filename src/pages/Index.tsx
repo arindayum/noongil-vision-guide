@@ -236,7 +236,6 @@ const Index = () => {
     if (analysisMode === 'object') track('objectDetections');
     if (analysisMode === 'text') {
       track('textReads');
-      if (result.offline) track('offlineOCRUses');
     }
     if (analysisMode === 'hazard') track('hazardDetections');
     if (result.warnings.length > 0 && analysisMode !== 'hazard') track('hazardDetections');

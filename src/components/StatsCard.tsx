@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Eye, FileText, AlertTriangle, ShieldAlert, WifiOff, ChevronDown, ChevronUp } from 'lucide-react';
+import { Eye, FileText, AlertTriangle, ShieldAlert, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { AnalyticsData } from '@/hooks/useAnalytics';
 
@@ -80,12 +80,7 @@ const StatsCard: React.FC<StatsCardProps> = ({ data }) => {
             value={data.emergencyActivations}
             color="bg-destructive/10"
           />
-          <StatItem
-            icon={<WifiOff className="h-4 w-4 text-muted-foreground" />}
-            label="Offline OCR uses"
-            value={data.offlineOCRUses}
-            color="bg-muted"
-          />
+
 
           <div className="pt-3 space-y-1">
             <div className="flex justify-between text-xs text-muted-foreground">

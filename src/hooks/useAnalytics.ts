@@ -5,7 +5,6 @@ export interface AnalyticsData {
   textReads: number;
   emergencyActivations: number;
   hazardDetections: number;
-  offlineOCRUses: number;
   totalSessions: number;
   firstUsed: number | null;
   lastUsed: number | null;
@@ -18,7 +17,6 @@ const EMPTY: AnalyticsData = {
   textReads: 0,
   emergencyActivations: 0,
   hazardDetections: 0,
-  offlineOCRUses: 0,
   totalSessions: 0,
   firstUsed: null,
   lastUsed: null,

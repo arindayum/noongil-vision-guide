@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Eye, FileText, Volume2, VolumeX, RotateCcw, AlertTriangle, Info, WifiOff, ShieldAlert } from 'lucide-react';
+import { Eye, FileText, Volume2, VolumeX, RotateCcw, AlertTriangle, Info, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { speak, stop } from '@/utils/speech';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useSettings } from '@/contexts/SettingsContext';
-import { useOfflineOCR } from '@/hooks/useOfflineOCR';
 import type { HistoryEntry } from '@/hooks/useHistory';
 
 export type AnalysisMode = 'object' | 'text' | 'hazard';
@@ -25,7 +24,6 @@ export interface StructuredResult {
   warnings: string[];
   detectedText?: string;
   confidence: 'high' | 'medium' | 'low';
-  offline?: boolean;
 }
 
 export const CONFIDENCE_PREFIX: Record<string, string> = {
@@ -75,11 +73,9 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     low: "I'm not entirely sure, but",
     warning: 'Warning',
     textReads: 'The text reads',
-    offlineNote: 'Note: offline mode used. Results may be less accurate.',
     // Visual labels
     back: 'Back',
     resultsTitle: 'Analysis Results',
-    offlineBasic: 'Offline mode — basic OCR',
     hazardFound: 'Hazards Found',
     pathClear: 'Path looks clear — no hazards detected',
     confidence: 'confidence',
@@ -89,8 +85,6 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     reAnalyse: 'Re-analyse',
     noResults: 'No results. Try taking another photo.',
     tryAgain: 'Try Again',
-    loadingEngine: 'Loading offline engine…',
-    recognisingText: 'Recognising text…',
     scanningHazards: 'Scanning for hazards…',
     analysingImage: 'Analysing image…',
     objectTitle: 'Object Detection',
@@ -105,11 +99,9 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     low: 'मैं पूरी तरह से पक्का नहीं हूँ, लेकिन',
     warning: 'चेतावनी',
     textReads: 'लिखा हुआ है',
-    offlineNote: 'नोट: ऑफलाइन मोड इस्तेमाल किया गया है।',
     // Visual labels
     back: 'पीछे',
     resultsTitle: 'विश्लेषण परिणाम',
-    offlineBasic: 'ऑफलाइन मोड — बुनियादी ओसीआर',
     hazardFound: 'खतरे मिले',
     pathClear: 'रास्ता साफ लग रहा है — कोई खतरा नहीं मिला',
     confidence: 'सटीकता',
@@ -119,8 +111,6 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     reAnalyse: 'फिर से विश्लेषण करें',
     noResults: 'कोई परिणाम नहीं। दूसरी फोटो लेने की कोशिश करें।',
     tryAgain: 'फिर कोशिश करें',
-    loadingEngine: 'ऑफलाइन इंजन लोड हो रहा है…',
-    recognisingText: 'टेक्स्ट पहचाना जा रहा है…',
     scanningHazards: 'खतरों की तलाश की जा रही है…',
     analysingImage: 'छवि का विश्लेषण किया जा रहा है…',
     objectTitle: 'वस्तु पहचान',
@@ -133,11 +123,9 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     low: 'मला पूर्णपणे खात्री नाही, पण',
     warning: 'धोका',
     textReads: 'लिहिलेले आहे',
-    offlineNote: 'टीप: ऑफलाइन मोड वापरला गेला आहे.',
     // Visual labels
     back: 'मागे',
     resultsTitle: 'विश्लेषण निकाल',
-    offlineBasic: 'ऑफलाइन मोड — मूलभूत ओसीआर',
     hazardFound: 'धोके सापडले',
     pathClear: 'रस्ता मोकळा वाटतो — कोणताही धोका आढळला नाही',
     confidence: 'निश्चितता',
@@ -147,8 +135,6 @@ export const LOCALIZED_STRINGS: Record<string, any> = {
     reAnalyse: 'पुन्हा विश्लेषण करा',
     noResults: 'निकाल नाही. दुसरा फोटो घेण्याचा प्रयत्न करा.',
     tryAgain: 'पुन्हा प्रयत्न करा',
-    loadingEngine: 'ऑफलाइन इंजिन लोड होत आहे…',
-    recognisingText: 'मजकूर ओळखला जात आहे…',
     scanningHazards: 'धोक्यांची तपासणी केली जात आहे…',
     analysingImage: 'प्रतिमेचे विश्लेषण केले जात आहे…',
     objectTitle: 'वस्तू ओळख',
@@ -166,7 +152,6 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
   const { toast } = useToast();
   const { language } = useLanguage();
   const { settings } = useSettings();
-  const { recognizeText, terminate, status: ocrStatus, progress: ocrProgress } = useOfflineOCR();
 
   const buildTTSText = useCallback((r: StructuredResult): string => {
     const s = LOCALIZED_STRINGS[language.code] || LOCALIZED_STRINGS.en;
@@ -181,8 +166,6 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
       parts.push(`${s.textReads}: ` + r.detectedText);
     }
 
-    if (r.offline) parts.push(s.offlineNote);
-
     return parts.join('. ');
   }, [mode, language.code]);
 
@@ -192,18 +175,6 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
     speak(buildTTSText(r), language.voiceLang, () => setIsSpeaking(false), settings.speechRate);
   }, [buildTTSText, settings.speechRate]);
 
-  const runOfflineOCR = useCallback(async (): Promise<StructuredResult | null> => {
-    const ocr = await recognizeText(imageSrc);
-    if (!ocr) return null;
-    return {
-      summary: 'Text extracted using offline recognition.',
-      objects: [], warnings: [],
-      detectedText: ocr.text,
-      confidence: ocr.confidence > 80 ? 'high' : ocr.confidence > 50 ? 'medium' : 'low',
-      offline: true,
-    };
-  }, [imageSrc, recognizeText]);
-
   const analyzeImage = useCallback(async () => {
     setIsLoading(true);
     setResult(null);
@@ -211,20 +182,6 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
 
     const base64Data = imageSrc.split(',')[1];
     const openRouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
-
-    if (!navigator.onLine && mode === 'text') {
-      const offlineResult = await runOfflineOCR();
-      if (offlineResult) {
-        setResult(offlineResult);
-        onSaveToHistory?.({ mode, imageSrc, ...offlineResult, language: language.code });
-        onAnalysisComplete?.(offlineResult);
-        if (settings.autoSpeak) setTimeout(() => speakResult(offlineResult), 400);
-      } else {
-        toast({ title: 'Offline OCR Failed', description: 'Could not read text offline.', variant: 'destructive' });
-      }
-      setIsLoading(false);
-      return;
-    }
 
     if (!openRouterApiKey) {
       toast({ title: 'API Key Missing', description: 'Add VITE_OPENROUTER_API_KEY to your .env file.', variant: 'destructive' });
@@ -294,26 +251,15 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
       if (settings.autoSpeak) setTimeout(() => speakResult(parsed), 400);
 
     } catch (error: unknown) {
-      if (!navigator.onLine && mode === 'text') {
-        toast({ title: 'No connection — trying offline OCR', description: 'Using on-device text recognition.' });
-        const offlineResult = await runOfflineOCR();
-        if (offlineResult) {
-          setResult(offlineResult);
-          onAnalysisComplete?.(offlineResult);
-          if (settings.autoSpeak) setTimeout(() => speakResult(offlineResult), 400);
-          setIsLoading(false);
-          return;
-        }
-      }
       const message = error instanceof Error ? error.message : 'Failed to analyse image.';
       toast({ title: 'Analysis Failed', description: message, variant: 'destructive' });
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     } finally {
       setIsLoading(false);
     }
-  }, [imageSrc, mode, language, settings.autoSpeak, toast, onSaveToHistory, onAnalysisComplete, runOfflineOCR, speakResult]);
+  }, [imageSrc, mode, language, settings.autoSpeak, toast, onSaveToHistory, onAnalysisComplete, speakResult]);
 
-  useEffect(() => { analyzeImage(); return () => { stop(); terminate(); }; }, [analyzeImage, terminate]);
+  useEffect(() => { analyzeImage(); return () => { stop(); }; }, [analyzeImage]);
 
   const modeConfig = (s: any) => ({
     object: { title: s.objectTitle, icon: <Eye className="h-6 w-6" /> },
@@ -324,8 +270,6 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
   const confidenceColor = { high: 'text-success', medium: 'text-accent', low: 'text-destructive' };
 
   const loadingLabel = (s: any) => {
-    if (ocrStatus === 'loading') return s.loadingEngine;
-    if (ocrStatus === 'running') return `${s.recognisingText} ${ocrProgress}%`;
     if (mode === 'hazard') return s.scanningHazards;
     return s.analysingImage;
   };
@@ -357,19 +301,9 @@ const VisionAnalysis: React.FC<VisionAnalysisProps> = ({
               <div className="text-center py-8" role="status" aria-label={loadingLabel(s)}>
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
                 <p className="text-accessible text-muted-foreground" aria-live="polite">{loadingLabel(s)}</p>
-                {ocrStatus === 'running' && (
-                  <div className="mt-3 mx-auto w-48 bg-muted rounded-full h-2">
-                    <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${ocrProgress}%` }} />
-                  </div>
-                )}
               </div>
             ) : result ? (
               <div className="space-y-4">
-                {result.offline && (
-                  <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-2 text-sm text-muted-foreground">
-                    <WifiOff className="h-4 w-4 shrink-0" />{s.offlineBasic}
-                  </div>
-                )}
 
                 {result.warnings.length > 0 && (
                   <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
