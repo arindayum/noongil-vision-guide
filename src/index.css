@@ -193,4 +193,26 @@ All colors MUST be HSL.
       min-height: 56px;
     }
   }
+
+  /* Accessibility utility classes */
+  :root.text-normal { font-size: 16px; }
+  :root.text-large { font-size: 18px; }
+  :root.text-xlarge { font-size: 20px; }
+
+  .high-contrast {
+    --background: 0 0% 0% !important;
+    --foreground: 0 0% 100% !important;
+    --primary: 60 100% 50% !important; /* Bright Yellow for high visibility */
+    --primary-foreground: 0 0% 0% !important;
+    --secondary: 0 0% 15% !important;
+    --secondary-foreground: 0 0% 100% !important;
+    --border: 0 0% 100% !important;
+    --input-border: 0 0% 100% !important;
+    --muted-foreground: 0 0% 100% !important;
+    --radius: 0; /* Clearer boundaries */
+  }
+
+  .high-contrast * {
+    border-width: 2px !important;
+  }
 }

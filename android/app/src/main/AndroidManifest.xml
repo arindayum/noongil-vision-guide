@@ -35,11 +35,22 @@
         </provider>
     </application>
 
-    <!-- Permissions -->
-
+    <!-- Core permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- ✅ Required for tel: intent (emergency calls) -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+
+    <!-- ✅ Required so emergency audio plays even when phone is in silent/vibrate mode -->
+    <uses-permission android:name="android.permission.CHANGE_AUDIO_SETTINGS" />
+
+    <!-- Hardware features — declare as not required so it installs on all Android devices -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
 </manifest>
